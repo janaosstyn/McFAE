@@ -1,0 +1,31 @@
+
+
+@[working_directory]/TCR3D_attributions/data/imrex_nocdr3dup/pymol_scripts/2P5W.pml
+
+remove solvent
+
+rotate z, 150
+rotate x, -40
+move y, 5
+
+png [working_directory]/TCR3D_attributions/output/plots/pymol_imrex_attributions/2P5W.png, dpi=300, width=3000
+
+@[working_directory]/TCR3D_attributions/data/titan_strictsplit/pymol_scripts/2P5W.pml
+png [working_directory]/TCR3D_attributions/output/plots/pymol_titan_strictsplit_attributions/2P5W.png, dpi=300, width=3000
+
+@[working_directory]/TCR3D_attributions/data/titan_nocdr3dup/pymol_scripts/2P5W.pml
+png [working_directory]/TCR3D_attributions/output/plots/pymol_titan_nocdr3dup_attributions/2P5W.png, dpi=300, width=3000
+
+3D structure without attributions:
+load [working_directory]/TCR3D_attributions/data/pdb/2p5w.pdb
+bg_color white
+
+remove solvent
+
+rotate z, 150
+rotate x, -40
+move y, 5
+
+color br9, chain E and resi 89-102
+color 0x00ff51, chain C
+png [working_directory]/TCR3D_attributions/output/plots/2P5W.png, dpi=300, width=3000
