@@ -1,3 +1,5 @@
+# McFAE (Molecular Complex Feature Attribution Extraction)
+
 ## Setup environment
 
 All required packages can be installed in a conda environment. `conda` and `git` need to be installed on your machine.
@@ -5,9 +7,9 @@ Installation can be done with
 
     conda env create -f environment.yml
 
-The TCR-epitope Feature Attributions (TEFA) environment can be activated with
+The McFAE environment can be activated with
 
-    conda activate TEFA
+    conda activate McFAE
 
 Run following script to unzip the data. This requires `unzip` to be installed, the zips at `data/pdb/pdb.zip`
 and `data/tcr3d_images/imrex_input_images.zip` can also be extracted manually.
