@@ -4,7 +4,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
 
 
 def add_negatives(

@@ -1,10 +1,10 @@
 import tensorflow as tf
 
-from src.config import PROJECT_ROOT
-from src.data.control_cdr3_source import ControlCDR3Source
-from src.data.vdjdb_source import VdjdbSource
-from src.processing.data_stream import DataStream
-from src.processing.separated_input_dataset_generator import (
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.separated_input_dataset_generator import (
     separated_input_dataset_generator,
 )
 

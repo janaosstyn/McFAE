@@ -8,14 +8,14 @@ import tensorflow as tf
 
 # from tensorflow.keras import callbacks
 
-from src.bio.feature_builder import FeatureBuilder
-from src.data.vdjdb_source import VdjdbSource
-from src.processing.data_stream import DataStream
-from src.processing.padded_dataset_generator import padded_dataset_generator
-from src.processing.separated_input_dataset_generator import (
+from ImRex.src.bio.feature_builder import FeatureBuilder
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.padded_dataset_generator import padded_dataset_generator
+from ImRex.src.processing.separated_input_dataset_generator import (
     separated_input_dataset_generator,
 )
-from src.processing.zipper import Zipper
+from ImRex.src.processing.zipper import Zipper
 
 
 # def create_csv_logger(output_dir: Path):

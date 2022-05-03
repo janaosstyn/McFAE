@@ -2,17 +2,17 @@
 import argparse
 import logging
 
-from src.config import PROJECT_ROOT
-from src.data.control_cdr3_source import ControlCDR3Source
-from src.data.vdjdb_source import VdjdbSource
-from src.scripts import io_helper
-from src.neural.trainer import get_output_path, Trainer
-from src.processing.cv_folds import cv_splitter
-from src.processing.decoyer import Decoyer
-from src.processing.separated_input_dataset_generator import (
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.scripts import io_helper
+from ImRex.src.neural.trainer import get_output_path, Trainer
+from ImRex.src.processing.cv_folds import cv_splitter
+from ImRex.src.processing.decoyer import Decoyer
+from ImRex.src.processing.separated_input_dataset_generator import (
     separated_input_dataset_generator,
 )
-from src.processing.splitter import splitter
+from ImRex.src.processing.splitter import splitter
 
 
 def create_parser():
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     )
 
     if args.model == "separated":
-        from src.models.model_separated_inputs import ModelSeparatedInputs
+        from ImRex.src.models.model_separated_inputs import ModelSeparatedInputs
 
         model = ModelSeparatedInputs(
             name=run_name,
@@ -327,7 +327,7 @@ if __name__ == "__main__":
             dropout_dense=args.dropout_dense,
         )
     elif args.model == "nettcr_custom":
-        from src.models.model_separated_inputs_nettcr_custom import (
+        from ImRex.src.models.model_separated_inputs_nettcr_custom import (
             ModelSeparatedInputsNetTcrCustom,
         )
 
@@ -342,7 +342,7 @@ if __name__ == "__main__":
         )
 
     elif args.model == "nettcr":
-        from src.models.model_separated_inputs_nettcr import ModelSeparatedInputsNetTcr
+        from ImRex.src.models.model_separated_inputs_nettcr import ModelSeparatedInputsNetTcr
 
         model = ModelSeparatedInputsNetTcr(
             name=run_name,
@@ -356,7 +356,7 @@ if __name__ == "__main__":
 
     # if decoys should be used during evaluation, generate the mapping of epitopes to decoys
     if args.decoy_validation:
-        from src.scripts.preprocessing.decoy_epitopes import create_decoy_dict
+        from ImRex.src.scripts.preprocessing.decoy_epitopes import create_decoy_dict
 
         epitope_list = data_source.data["antigen.epitope"].unique()
         decoy_dict = create_decoy_dict(epitope_list, weighted=False, seed=42)

@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from src.definitions.amino_acid_properties import AMINO_ACIDS
-from src.processing.data_stream import DataStream
-from src.processing.negative_sampler import add_negatives, augment_negatives
-from src.processing.stream import TransformStream
-from src.processing.zipper import Zipper
+from ImRex.src.definitions.amino_acid_properties import AMINO_ACIDS
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.negative_sampler import add_negatives, augment_negatives
+from ImRex.src.processing.stream import TransformStream
+from ImRex.src.processing.zipper import Zipper
 
 
 def separated_input_dataset_generator(

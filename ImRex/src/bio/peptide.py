@@ -1,7 +1,7 @@
 import random
 
-from src.bio.peptide_feature import Charge, Hydrophobicity, IsoelectricPoint
-from src.bio.util import AMINO_ACIDS
+from ImRex.src.bio.peptide_feature import Charge, Hydrophobicity, IsoelectricPoint
+from ImRex.src.bio.util import AMINO_ACIDS
 
 
 class Peptide(str):

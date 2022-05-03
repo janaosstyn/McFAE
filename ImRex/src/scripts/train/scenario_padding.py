@@ -2,19 +2,19 @@
 import argparse
 import logging
 
-from src.bio.feature_builder import CombinedPeptideFeatureBuilder
-from src.bio.peptide_feature import parse_features, parse_operator
-from src.config import PROJECT_ROOT
-from src.data.control_cdr3_source import ControlCDR3Source
-from src.data.vdjdb_source import VdjdbSource
-from src.models.model_padded import ModelPadded
-from src.scripts import io_helper
-from src.neural.trainer import get_output_path, Trainer
-from src.processing.cv_folds import cv_splitter
-from src.processing.decoyer import Decoyer
-from src.processing.inverse_map import InverseMap
-from src.processing.padded_dataset_generator import padded_dataset_generator
-from src.processing.splitter import splitter
+from ImRex.src.bio.feature_builder import CombinedPeptideFeatureBuilder
+from ImRex.src.bio.peptide_feature import parse_features, parse_operator
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.models.model_padded import ModelPadded
+from ImRex.src.scripts import io_helper
+from ImRex.src.neural.trainer import get_output_path, Trainer
+from ImRex.src.processing.cv_folds import cv_splitter
+from ImRex.src.processing.decoyer import Decoyer
+from ImRex.src.processing.inverse_map import InverseMap
+from ImRex.src.processing.padded_dataset_generator import padded_dataset_generator
+from ImRex.src.processing.splitter import splitter
 
 
 def create_parser():
@@ -428,7 +428,7 @@ if __name__ == "__main__":
 
     # if decoys should be used during evaluation, generate the mapping of epitopes to decoys
     if args.decoy_validation:
-        from src.scripts.preprocessing.decoy_epitopes import create_decoy_dict
+        from ImRex.src.scripts.preprocessing.decoy_epitopes import create_decoy_dict
 
         epitope_list = data_source.data["antigen.epitope"].unique()
         decoy_dict = create_decoy_dict(epitope_list, weighted=False, seed=42)

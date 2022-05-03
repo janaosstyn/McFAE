@@ -1,12 +1,10 @@
 import os
 import pandas as pd
-import sys
 from Bio.PDB import PDBParser
 from colour import Color
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 
-sys.path.insert(0, os.path.abspath('.'))
 from src.imrex_attributions import ImrexAttributionsHandler
 from src.titan_attributions import TITANAttributionsHandler
 from src.util import pdb2fasta_mapper, get_cmap

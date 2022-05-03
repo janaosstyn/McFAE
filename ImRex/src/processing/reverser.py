@@ -1,6 +1,6 @@
 from typing import Optional
 
-from src.processing.stream import TransformStream
+from ImRex.src.processing.stream import TransformStream
 
 
 class Reverser(TransformStream):

@@ -1,13 +1,13 @@
 import tensorflow as tf
 
-from src.bio.feature_builder import CombinedPeptideFeatureBuilder
-from src.bio.peptide_feature import parse_features, parse_operator
-from src.config import PROJECT_ROOT
-from src.data.control_cdr3_source import ControlCDR3Source
-from src.data.vdjdb_source import VdjdbSource
-from src.processing.data_stream import DataStream
-from src.processing.padded_batch_generator import padded_batch_generator
-from src.processing.padded_dataset_generator import (
+from ImRex.src.bio.feature_builder import CombinedPeptideFeatureBuilder
+from ImRex.src.bio.peptide_feature import parse_features, parse_operator
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.padded_batch_generator import padded_batch_generator
+from ImRex.src.processing.padded_dataset_generator import (
     # augment_pairs,
     padded_dataset_generator,
 )

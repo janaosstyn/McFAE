@@ -7,16 +7,16 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from src.bio.feature_builder import CombinedPeptideFeatureBuilder
-from src.bio.peptide_feature import parse_features, parse_operator
-from src.config import PROJECT_ROOT
-from src.data.vdjdb_source import VdjdbSource
-from src.neural import evaluation
-from src.processing.data_stream import DataStream
-from src.processing.image_generator import ImageGenerator
-from src.processing.image_padding import ImagePadding
-from src.processing.padded_dataset_generator import padded_dataset_generator
-from src.processing.separated_input_dataset_generator import (
+from ImRex.src.bio.feature_builder import CombinedPeptideFeatureBuilder
+from ImRex.src.bio.peptide_feature import parse_features, parse_operator
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.neural import evaluation
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.image_generator import ImageGenerator
+from ImRex.src.processing.image_padding import ImagePadding
+from ImRex.src.processing.padded_dataset_generator import padded_dataset_generator
+from ImRex.src.processing.separated_input_dataset_generator import (
     BlosumImageGenerator,
     BlosumPadding,
     separated_input_dataset_generator,

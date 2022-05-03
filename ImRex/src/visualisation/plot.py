@@ -23,7 +23,7 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-from src.bio.util import subdirs
+from ImRex.src.bio.util import subdirs
 
 
 FILES = [

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.bio import operator, peptide_feature, util
+from ImRex.src.bio import operator, peptide_feature, util
 
 
 def test_scale_matrix():

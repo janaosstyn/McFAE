@@ -10,8 +10,8 @@ from sklearn.model_selection import (
     RepeatedKFold,
 )
 
-from src.data.data_source import DataSource
-from src.processing.data_stream import DataStream
+from ImRex.src.data.data_source import DataSource
+from ImRex.src.processing.data_stream import DataStream
 
 
 def cv_splitter(

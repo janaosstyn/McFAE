@@ -1,4 +1,4 @@
-from src.processing.stream import Stream
+from ImRex.src.processing.stream import Stream
 
 
 class DataStream(Stream):

@@ -1,5 +1,5 @@
-from src.config import PROJECT_ROOT
-from src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
 
 
 def test_control_cdr3():

@@ -1,15 +1,15 @@
 from tensorflow import keras
 
-from src.definitions.amino_acid_properties import AMINO_ACIDS
-from src.processing.batch_generator import BatchGenerator
-from src.processing.filter import PositiveFilter, SizeFilter
-from src.processing.joiner import Joiner
-from src.processing.labeler import Labeler, LabelTrimmer
-from src.processing.sampler import Sampler
-from src.processing.stream import TransformStream
-from src.processing.swapper import Swapper
-from src.processing.tee import tee
-from src.processing.zipper import unzipper, Zipper
+from ImRex.src.definitions.amino_acid_properties import AMINO_ACIDS
+from ImRex.src.processing.batch_generator import BatchGenerator
+from ImRex.src.processing.filter import PositiveFilter, SizeFilter
+from ImRex.src.processing.joiner import Joiner
+from ImRex.src.processing.labeler import Labeler, LabelTrimmer
+from ImRex.src.processing.sampler import Sampler
+from ImRex.src.processing.stream import TransformStream
+from ImRex.src.processing.swapper import Swapper
+from ImRex.src.processing.tee import tee
+from ImRex.src.processing.zipper import unzipper, Zipper
 
 
 def ppi_lit_generator(

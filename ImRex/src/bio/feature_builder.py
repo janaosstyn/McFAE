@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.bio.peptide_feature import ProductOperator
+from ImRex.src.bio.peptide_feature import ProductOperator
 
 
 class FeatureBuilder(object):

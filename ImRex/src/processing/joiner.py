@@ -1,6 +1,6 @@
 import random
 
-from src.processing.stream import BatchStream
+from ImRex.src.processing.stream import BatchStream
 
 
 class Joiner(BatchStream):

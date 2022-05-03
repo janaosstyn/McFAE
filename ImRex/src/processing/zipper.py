@@ -1,5 +1,5 @@
-from src.processing.data_stream import DataStream
-from src.processing.stream import Stream  # , TransformStream
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.stream import Stream  # , TransformStream
 
 
 class Zipper(Stream):

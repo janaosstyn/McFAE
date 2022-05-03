@@ -2,7 +2,7 @@ from functools import lru_cache
 
 import pandas as pd
 
-from src.data.data_source import DataSource
+from ImRex.src.data.data_source import DataSource
 
 
 POS_PATH = "../data/raw/ppi/PPI_positive.csv"

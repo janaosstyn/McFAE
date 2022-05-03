@@ -11,8 +11,8 @@
 # from io import StringIO
 # import tempfile
 
-from src.config import PROJECT_ROOT
-from src.scripts.preprocessing import preprocess_vdjdb
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.scripts.preprocessing import preprocess_vdjdb
 
 # enable file logger because preprocessing function expects it...
 # log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

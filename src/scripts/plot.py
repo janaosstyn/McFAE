@@ -1,5 +1,4 @@
 import os
-import sys
 import pickle
 
 import numpy as np
@@ -11,7 +10,6 @@ import matplotlib as mpl
 import seaborn as sns
 import tensorflow as tf
 
-sys.path.insert(0, os.path.abspath('.'))
 from src.imrex_attributions import ImrexAttributionsHandler
 from src.titan_attributions import TITANAttributionsHandler
 from src.util import aa_add_padding, split_line, imrex_remove_padding

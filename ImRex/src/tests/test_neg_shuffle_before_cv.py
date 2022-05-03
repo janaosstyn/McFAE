@@ -1,11 +1,11 @@
 import pandas as pd
 
-from src.config import PROJECT_ROOT
-from src.data.control_cdr3_source import ControlCDR3Source
-from src.data.vdjdb_source import VdjdbSource
-from src.processing.cv_folds import cv_splitter
-from src.processing.negative_sampler import sample_epitope_per_cdr3
-from src.processing.splitter import splitter
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.processing.cv_folds import cv_splitter
+from ImRex.src.processing.negative_sampler import sample_epitope_per_cdr3
+from ImRex.src.processing.splitter import splitter
 
 
 def test_generate_negatives():

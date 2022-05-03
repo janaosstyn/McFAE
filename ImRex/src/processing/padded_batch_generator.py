@@ -3,18 +3,18 @@ from typing import Optional, Tuple
 
 import tensorflow as tf
 
-from src.bio.feature_builder import FeatureBuilder
-from src.processing.data_stream import DataStream
-from src.processing.filter import PositiveFilter, SizeFilter
-from src.processing.image_generator import ImageGenerator
-from src.processing.image_padding import ImagePadding
-from src.processing.inverse_map import InverseMap, NoOp
-from src.processing.joiner import Joiner
-from src.processing.labeler import Labeler, LabelTrimmer
-from src.processing.sampler import Sampler
-from src.processing.swapper import Swapper
-from src.processing.tee import tee
-from src.processing.zipper import unzipper, Zipper
+from ImRex.src.bio.feature_builder import FeatureBuilder
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.filter import PositiveFilter, SizeFilter
+from ImRex.src.processing.image_generator import ImageGenerator
+from ImRex.src.processing.image_padding import ImagePadding
+from ImRex.src.processing.inverse_map import InverseMap, NoOp
+from ImRex.src.processing.joiner import Joiner
+from ImRex.src.processing.labeler import Labeler, LabelTrimmer
+from ImRex.src.processing.sampler import Sampler
+from ImRex.src.processing.swapper import Swapper
+from ImRex.src.processing.tee import tee
+from ImRex.src.processing.zipper import unzipper, Zipper
 
 
 def padded_batch_generator(

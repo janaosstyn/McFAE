@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from src.neural.trainer import get_output_path
+from ImRex.src.neural.trainer import get_output_path
 
 
 def create_run_name(name):

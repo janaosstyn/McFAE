@@ -10,8 +10,8 @@ from tensorflow.keras import callbacks
 from tensorflow.keras import metrics
 from tensorflow.keras.backend import clear_session
 
-from src.config import MODEL_DIR, TENSORBOARD_DIR
-from src.processing.inverse_map import InverseMap
+from ImRex.src.config import MODEL_DIR, TENSORBOARD_DIR
+from ImRex.src.processing.inverse_map import InverseMap
 
 
 NUMBER_OF_GPUS = os.environ.get("GPUS")

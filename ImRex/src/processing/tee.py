@@ -1,7 +1,7 @@
 from typing import List
 
-from src.processing.data_stream import DataStream
-from src.processing.stream import Stream
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.stream import Stream
 
 
 def tee(stream: Stream, amount: int = 2) -> List[DataStream]:

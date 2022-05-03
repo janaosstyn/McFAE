@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.processing.stream import TransformStream
+from ImRex.src.processing.stream import TransformStream
 
 
 class ImagePadding(TransformStream):

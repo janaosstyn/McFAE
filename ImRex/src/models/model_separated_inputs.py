@@ -16,7 +16,7 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.regularizers import l2
 
-from src.models.model import Model
+from ImRex.src.models.model import Model
 
 NUM_CLASSES = 1
 LENGTH = 10

@@ -1,7 +1,7 @@
 import numpy as np
 
-from src.bio import peptide_feature
-from src.definitions.amino_acid_properties import AMINO_ACIDS
+from ImRex.src.bio import peptide_feature
+from ImRex.src.definitions.amino_acid_properties import AMINO_ACIDS
 
 
 def test_features_map():

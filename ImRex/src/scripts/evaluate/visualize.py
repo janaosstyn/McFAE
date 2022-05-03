@@ -8,9 +8,9 @@ import pandas as pd
 from scipy import stats
 import seaborn as sns
 
-import src.bacli as bacli
-from src.bio.image import image_from_matrices, image_from_matrix, image_from_tensor
-from src.bio.peptide_feature import (  # noqa: I101
+import ImRex.src.bacli as bacli
+from ImRex.src.bio.image import image_from_matrices, image_from_matrix, image_from_tensor
+from ImRex.src.bio.peptide_feature import (  # noqa: I101
     Charge,
     Hydrophilicity,
     Hydrophobicity,
@@ -29,10 +29,10 @@ from src.bio.peptide_feature import (  # noqa: I101
     parse_operator,
     IsoelectricPoint,
 )
-from src.bio.util import subdirs
-from src.config import PROJECT_ROOT
-from src.definitions.amino_acid_properties import AMINO_ACIDS
-from src.visualisation.plot import (
+from ImRex.src.bio.util import subdirs
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.definitions.amino_acid_properties import AMINO_ACIDS
+from ImRex.src.visualisation.plot import (
     cmap,
     concatenate_all,
     consolidate_all,
@@ -94,8 +94,8 @@ def activations(
     from tensorflow.keras.models import load_model
     from keract import get_activations, display_activations  # , display_heatmaps
 
-    from src.processing.image_padding import ImagePadding
-    from src.bio.feature_builder import CombinedPeptideFeatureBuilder
+    from ImRex.src.processing.image_padding import ImagePadding
+    from ImRex.src.bio.feature_builder import CombinedPeptideFeatureBuilder
 
     if epitope is None or cdr3 is None:
         print("Supply epitope and cdr3")
@@ -124,10 +124,10 @@ def make_input(epitope, cdr3):
     # TODO: implement
     #  generate input image for epitope and cdr3 sequence
     #  need to handle 'X' amino acid
-    from src.bio.feature_builder import CombinedPeptideFeatureBuilder
-    from src.processing.image_generator import ImageGenerator
-    from src.processing.image_padding import ImagePadding
-    from src.processing.data_stream import DataStream
+    from ImRex.src.bio.feature_builder import CombinedPeptideFeatureBuilder
+    from ImRex.src.processing.image_generator import ImageGenerator
+    from ImRex.src.processing.image_padding import ImagePadding
+    from ImRex.src.processing.data_stream import DataStream
 
     features = "hydrophob,isoelectric,mass,hydrophil,charge"
     operator = "absdiff"

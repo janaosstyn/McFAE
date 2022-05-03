@@ -1,9 +1,9 @@
 import pandas as pd
 
-from src.config import PROJECT_ROOT
-from src.data.control_cdr3_source import ControlCDR3Source
-from src.data.data_source import DataSource
-from src.processing.negative_sampler import add_negatives
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.control_cdr3_source import ControlCDR3Source
+from ImRex.src.data.data_source import DataSource
+from ImRex.src.processing.negative_sampler import add_negatives
 
 
 VDJDB_PATH = PROJECT_ROOT / "data/interim/vdjdb-human-trb.csv"

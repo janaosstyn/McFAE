@@ -6,13 +6,13 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from src.bio.feature_builder import FeatureBuilder
-from src.processing.data_stream import DataStream
-from src.processing.image_generator import ImageGenerator
-from src.processing.image_padding import ImagePadding
-from src.processing.inverse_map import InverseMap, NoOp
-from src.processing.negative_sampler import add_negatives, augment_negatives
-from src.processing.zipper import Zipper
+from ImRex.src.bio.feature_builder import FeatureBuilder
+from ImRex.src.processing.data_stream import DataStream
+from ImRex.src.processing.image_generator import ImageGenerator
+from ImRex.src.processing.image_padding import ImagePadding
+from ImRex.src.processing.inverse_map import InverseMap, NoOp
+from ImRex.src.processing.negative_sampler import add_negatives, augment_negatives
+from ImRex.src.processing.zipper import Zipper
 
 
 def padded_dataset_generator(

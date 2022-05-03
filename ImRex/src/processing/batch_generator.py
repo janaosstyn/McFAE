@@ -1,7 +1,7 @@
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
-from src.processing.stream import BatchStream
+from ImRex.src.processing.stream import BatchStream
 
 
 class BatchGenerator(Sequence, BatchStream):

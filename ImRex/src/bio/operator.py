@@ -2,7 +2,7 @@ from functools import lru_cache
 
 import numpy as np
 
-from src.bio.util import scale_matrix
+from ImRex.src.bio.util import scale_matrix
 
 
 class Operator(object):

@@ -6,7 +6,7 @@ import random
 
 import pandas as pd
 
-from src.definitions.amino_acid_properties import AMINO_ACIDS
+from ImRex.src.definitions.amino_acid_properties import AMINO_ACIDS
 
 
 def create_parser():

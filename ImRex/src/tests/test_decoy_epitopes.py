@@ -1,6 +1,6 @@
-from src.config import PROJECT_ROOT
-from src.data.vdjdb_source import VdjdbSource
-from src.scripts.preprocessing.decoy_epitopes import create_decoy_epitopes
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.vdjdb_source import VdjdbSource
+from ImRex.src.scripts.preprocessing.decoy_epitopes import create_decoy_epitopes
 
 
 def test_decoy_epitopes():

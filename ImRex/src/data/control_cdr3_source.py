@@ -3,8 +3,8 @@ from typing import Optional
 
 import pandas as pd
 
-from src.config import PROJECT_ROOT
-from src.data.data_source import DataSource
+from ImRex.src.config import PROJECT_ROOT
+from ImRex.src.data.data_source import DataSource
 
 CONTROL_CDR3_PATH = PROJECT_ROOT / "data/raw/CDR3_control_sequences.tsv"
 CONTROL_CDR3_SEQ_COLUMN = "CDR3_beta"

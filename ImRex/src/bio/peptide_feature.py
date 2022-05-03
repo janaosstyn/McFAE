@@ -7,13 +7,13 @@ from Bio.SeqUtils.ProtParam import ProteinAnalysis
 import numpy as np
 from pyteomics import electrochem
 
-from src.bio.operator import (
+from ImRex.src.bio.operator import (
     AbsDifferenceOperator,
     DifferenceOperator,
     LayeredOperator,
     ProductOperator,
 )
-from src.definitions.amino_acid_properties import (
+from ImRex.src.definitions.amino_acid_properties import (
     AMINO_ACIDS,
     ATCHLEY_FACTOR_1,
     ATCHLEY_FACTOR_2,

@@ -1,12 +1,12 @@
-from src.processing.batch_extender import BatchExtender
-from src.processing.batch_generator import BatchGenerator
-from src.processing.grouper import GroupedAmountFilter, ShapeGrouper, SizeGrouper
-from src.processing.image_generator import ImageGenerator
-from src.processing.labeler import Labeler, LabelTrimmer
-from src.processing.sampler import BatchSampler, GroupSampler
-from src.processing.shaped_batch_sampler import ShapedBatchSampler
-from src.processing.tee import tee
-from src.processing.zipper import unzipper
+from ImRex.src.processing.batch_extender import BatchExtender
+from ImRex.src.processing.batch_generator import BatchGenerator
+from ImRex.src.processing.grouper import GroupedAmountFilter, ShapeGrouper, SizeGrouper
+from ImRex.src.processing.image_generator import ImageGenerator
+from ImRex.src.processing.labeler import Labeler, LabelTrimmer
+from ImRex.src.processing.sampler import BatchSampler, GroupSampler
+from ImRex.src.processing.shaped_batch_sampler import ShapedBatchSampler
+from ImRex.src.processing.tee import tee
+from ImRex.src.processing.zipper import unzipper
 
 
 def grouped_batch_generator(
