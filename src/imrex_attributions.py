@@ -1,20 +1,33 @@
-import pickle
-import shap
 import os
-import sys
-import pandas as pd
+import pickle
+
 import numpy as np
+import pandas as pd
 import saliency.core as saliency
+import shap
 import tensorflow as tf
 
-sys.path.insert(0, os.path.abspath('.'))
 from src.util import imrex_remove_padding, imgs_to_list_of_feature_lists, generate_path_inputs, setup_logger, \
     get_distance_matrices, normalize_2d, rmse, matrix_to_aa, list_feature_list_to_list_imgs, img_to_feature_list, \
     get_mean_feature_values, integral_approximation
 
 
 class ImrexAttributionsHandler:
+    """
+    Class that manages feature attribution extraction from any pretrained ImRex model. This class calculates and
+    saves all required (intermediary) results, e.g. featura attributions, distance matrices and RMSE's.
+    """
+
     def __init__(self, name, display_name, model_path, image_path, save_folder):
+        """
+        Parameters
+        ----------
+        name            Internal name, results will be saved in the folder [save_folder]/[name]
+        display_name    Name displayed by e.g. plot.py
+        model_path      Path to the ImRex model
+        image_path      Path to the ImRex input used for feature attribution extraction
+        save_folder     Path to the save folder, results will be saved in the folder [save_folder]/[name]
+        """
         self.name = name
         self.display_name = display_name
         self.model_path = model_path
@@ -39,12 +52,19 @@ class ImrexAttributionsHandler:
         self.aa_random_error = None
         self.aa_random_error_ps = None
 
+        # Create folder to save results if it does not exists yet
         if not os.path.exists(f"{self.save_folder}/{self.name}"):
             os.makedirs(f"{self.save_folder}/{self.name}")
 
         self.logger = setup_logger(self.name)
 
     def get_sequences(self):
+        """
+        Returns
+        -------
+        Epitope and CDR3 sequence for each PDB complex
+        """
+
         tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv")
         sequences = {}
         for pdb_id, cdr3, ep in zip(tcr3df['PDB_ID'], tcr3df['cdr3'], tcr3df['antigen.epitope']):
@@ -52,10 +72,24 @@ class ImrexAttributionsHandler:
         return sequences
 
     def get_attributions(self, overwrite=False):
+        """
+        Calculate and save all feature attributions, loaded from file if already saved previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, attributions will be re-calculated and overwrite the old saved result
+
+        Returns
+        -------
+        A dict with attributions for each PDB complex
+        """
+
         def attributions():
+            # Get data and ImRex model
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv")
             self.model, self.input_images = self.imrex_setup()
 
+            # Calculate SHAP feature attributions with 'mean' and 'dist' background methods
             shaps_mean = self.get_shap_attributions('mean')
             shaps_dist = self.get_shap_attributions('dist')
 
@@ -63,14 +97,18 @@ class ImrexAttributionsHandler:
             for pdb_id, cdr3, ep, shap_mean, shap_dist in zip(tcr3df['PDB_ID'], tcr3df['cdr3'],
                                                               tcr3df['antigen.epitope'], shaps_mean, shaps_dist):
 
+                # Calculate IG feature attribution
                 manual_ig = self.get_ig_attribution(self.input_images[pdb_id])
 
+                # Remove padding from SHAP and IG feature attributions and save in dict
                 img_attributions = {'SHAP mean': imrex_remove_padding(shap_mean, len(cdr3), len(ep)),
                                     'SHAP BGdist': imrex_remove_padding(shap_dist, len(cdr3), len(ep)),
                                     'IG': imrex_remove_padding(manual_ig, len(cdr3), len(ep))}
 
                 saliency_methods = ['Vanilla', 'SmoothGrad', 'VanillaIG', 'SmoothGradIG', 'GuidedIG', 'XRAI',
                                     'BlurIG', 'SmoothGradBlurIG']
+
+                # Add attributions of all saliency methods to dict
                 for method in saliency_methods:
                     saliency_attribution = self.get_saliency_attribution(self.input_images[pdb_id], method)
                     img_attributions[method] = imrex_remove_padding(saliency_attribution, len(cdr3), len(ep))
@@ -84,12 +122,37 @@ class ImrexAttributionsHandler:
         return self.attributions
 
     def get_distances(self, overwrite=False):
+        """
+        Calculate and save all distance matrices, loaded from file if already saved previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, distance matrices will be re-calculated and overwrite the old saved result
+
+        Returns
+        -------
+        A dict with a distance matrix for each PDB complex
+        """
         self.distances = self.__handle_getter(get_distance_matrices, self.distances, overwrite, "distance_matrices.p",
                                               'distances')
 
         return self.distances
 
     def get_norm_distances(self, overwrite=False):
+        """
+        Calculate and save all normalized distance matrices, loaded from file if already saved previously
+        (and overwrite=False). Normalization is done by taking 1/value for each value in the distance matrix.
+
+        Parameters
+        ----------
+        overwrite   If True, normalized distance matrices will be re-calculated and overwrite the old saved result, the
+                    original distances will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the normalized distance matrix for each PDB complex
+        """
+
         def norm_distances():
             distances = self.get_distances()
             norm_distances = {}
@@ -102,6 +165,20 @@ class ImrexAttributionsHandler:
         return self.norm_distances
 
     def get_errors(self, overwrite=False):
+        """
+        Calculate and save all RMSE's between the attributions and distances, loaded from file if already saved
+        previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, RMSE's will be re-calculated and overwrite the old saved result, the original distances and
+                    attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the RMSE for each PDB complex
+        """
+
         def errors():
             attributions = self.get_attributions()
             distances = self.get_distances()
@@ -119,14 +196,33 @@ class ImrexAttributionsHandler:
         return self.errors
 
     def get_random_error(self, overwrite=False):
+        """
+        Calculate and save the random RMSE by taking the RMSE between a random feature attribution matrix and the
+        distance matrix of each PDB complex 1000 times, loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, the random error will be re-calculated and overwrite the old saved result, the original
+                    distances will not be re-calculated.
+
+        Returns
+        -------
+        The tuple (mean_random_error, std_random_error)
+        """
+
         def random_error():
             distances = self.get_distances()
             random_errors = []
             for pdb_id, dist_m in distances.items():
+                # Repeat 1000 times
                 for i in range(1000):
+                    # Get a random matix with same shape as distance matrix
                     random_m = np.random.rand(*dist_m.shape)
+                    # calculate RMSE
                     random_errors.append(rmse(dist_m, random_m))
                 self.logger.info(f'{pdb_id} done')
+            # Return mean and std
             return np.mean(random_errors), np.std(random_errors)
 
         self.random_error = self.__handle_getter(random_error, self.random_error, overwrite, "imrex_random_error.p",
@@ -134,6 +230,20 @@ class ImrexAttributionsHandler:
         return self.random_error
 
     def get_aa_attributions(self, overwrite=False):
+        """
+        Calculate and save the feature attributions merged per AA, loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, AA feature attributions will be re-calculated and overwrite the old saved result,
+                    the original attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA feature attributions for each PDB complex
+        """
+
         def aa_attributions():
             attributions = self.get_attributions()
             aa_attributions = {}
@@ -149,6 +259,19 @@ class ImrexAttributionsHandler:
         return self.aa_attributions
 
     def get_norm_attributions(self, overwrite=False):
+        """
+        Calculate and save the normalized feature attributions, loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, normalized feature attributions will be re-calculated and overwrite the old saved result,
+                    the original attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the normalized feature attributions for each PDB complex
+        """
         def norm_attributions():
             attributions = self.get_attributions()
             norm_attributions = {}
@@ -163,6 +286,20 @@ class ImrexAttributionsHandler:
         return self.norm_attributions
 
     def get_aa_norm_attributions(self, overwrite=False):
+        """
+        Calculate and save the normalized AA feature attributions, loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, normalized AA feature attributions will be re-calculated and overwrite the old saved
+                    result, the original AA feature attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the normalized AA feature attributions for each PDB complex
+        """
+
         def aa_norm_attributions():
             aa_attributions = self.get_aa_attributions()
             aa_norm_attributions = {}
@@ -178,6 +315,20 @@ class ImrexAttributionsHandler:
         return self.aa_norm_attributions
 
     def get_aa_distances(self, overwrite=False):
+        """
+        Calculate and save the distance matrices merged per AA, loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, AA distances will be re-calculated and overwrite the old saved result, the original
+                    distances will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA distances for each PDB complex
+        """
+
         def aa_distances():
             distances = self.get_distances()
             aa_distances = {}
@@ -190,6 +341,20 @@ class ImrexAttributionsHandler:
         return self.aa_distances
 
     def get_aa_norm_distances(self, overwrite=False):
+        """
+        Calculate and save the normalized AA distances, loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, normalized AA distances will be re-calculated and overwrite the old saved result, the
+                    original AA distances will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the normalized AA distances for each PDB complex
+        """
+
         def aa_norm_distances():
             aa_distances = self.get_aa_distances()
             aa_norm_distances = {}
@@ -202,6 +367,20 @@ class ImrexAttributionsHandler:
         return self.aa_norm_distances
 
     def get_aa_errors(self, overwrite=False):
+        """
+        Calculate and save the RMSE's between the AA distance and AA feature attributions, loaded from file if already
+        saved previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, AA RMSE's will be re-calculated and overwrite the old saved result, the original AA
+                    distances and AA attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA RMSE for each PDB complex
+        """
+
         def aa_errors():
             aa_attributions = self.get_aa_attributions()
             aa_distances = self.get_aa_distances()
@@ -219,6 +398,20 @@ class ImrexAttributionsHandler:
         return self.aa_errors
 
     def get_aa_errors_ps(self, overwrite=False):
+        """
+        Calculate and save the AA RMSE's per sequence (epitope and CDR3) separately, loaded from file if already saved
+        previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, AA RMSE's per sequence will be re-calculated and overwrite the old saved result, the
+                    original AA distances and AA attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA RMSE per sequence for each PDB complex
+        """
+
         def aa_errors_ps():
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
             aa_attributions = self.get_aa_attributions()
@@ -226,13 +419,16 @@ class ImrexAttributionsHandler:
             error_ps_dict = {}
             for pdb_id, methods in aa_attributions.items():
                 aa_dist = aa_distances[pdb_id]
+                # Get starting index of epitope
                 seq_split = len(tcr3df.loc[pdb_id]['antigen.epitope'])
                 error_ps_dict[pdb_id] = {}
                 for method, attribution in methods.items():
+                    # Split distance and attributions arrays in epitope and CDR3
                     ep_aa_dist = aa_dist[:seq_split]
                     cdr3_aa_dist = aa_dist[seq_split:]
                     ep_attribution = attribution[:seq_split]
                     cdr3_attribution = attribution[seq_split:]
+                    # Calculate rmse separately for epitope and CDR3
                     error_ps_dict[pdb_id][method] = (rmse(ep_aa_dist, ep_attribution),
                                                      rmse(cdr3_aa_dist, cdr3_attribution))
             return error_ps_dict
@@ -242,11 +438,26 @@ class ImrexAttributionsHandler:
         return self.aa_errors_ps
 
     def get_aa_random_error(self, overwrite=False):
+        """
+        Calculate and save the random RMSE between the AA distance and AA feature attributions, loaded from file if
+        already saved previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, the AA random RMSE will be re-calculated and overwrite the old saved result, the original
+                    AA distances will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA random RMSE for each PDB complex
+        """
+
         def aa_random_error():
             errors = []
             aa_distances = self.get_aa_distances()
             for pdb_id, aa_dist in aa_distances.items():
                 for i in range(1000):
+                    # Get random array with same length as distance array
                     random_a = np.random.rand(len(aa_dist))
                     errors.append(rmse(aa_dist, random_a))
             return np.mean(errors), np.std(errors)
@@ -256,6 +467,20 @@ class ImrexAttributionsHandler:
         return self.aa_random_error
 
     def get_aa_random_error_ps(self, overwrite=False):
+        """
+        Calculate and save the AA random RMSE's per sequence (epitope and CDR3), loaded from file if already saved
+        previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, the AA random RMSE per sequence will be re-calculated and overwrite the old saved result,
+                    the original AA distances will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA random RMSE per sequence for each PDB complex
+        """
+
         def aa_random_error_ps():
             errors_ep = []
             errors_cdr3 = []
@@ -279,6 +504,14 @@ class ImrexAttributionsHandler:
         return self.aa_random_error_ps
 
     def set_all(self, overwrite=False):
+        """
+        Calculate and save all results for this model, results are loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, all results will be re-calculated and overwrite the old saved results.
+        """
         self.get_attributions(overwrite)
         self.get_distances(overwrite)
         self.get_norm_distances(overwrite)
@@ -295,6 +528,13 @@ class ImrexAttributionsHandler:
         self.get_aa_random_error_ps(overwrite)
 
     def imrex_setup(self):
+        """
+        Loads pretrained ImRex model and input images
+
+        Returns
+        -------
+        Imrex model, dict: input for each PDB complex
+        """
         model = tf.keras.models.load_model(self.model_path)
         input_imgs = {}
         for f in sorted(os.listdir(self.image_path)):
@@ -302,59 +542,119 @@ class ImrexAttributionsHandler:
         return model, input_imgs
 
     def make_prediction(self, img):
+        """
+        Make a single prediction with the ImRex model
+
+        Parameters
+        ----------
+        img     The input image
+
+        Returns
+        -------
+        The predicted binding probability
+        """
+        # Prepare input shape
         image_batch = tf.expand_dims(img, 0)
+        # Make prediction
         prob = self.model(image_batch)
         prediction = tf.math.round(prob)
         return prediction
 
     def get_shap_attributions(self, background):
+        """
+        Calculate the SHAP feature attributions based on the given background method
+
+        Parameters
+        ----------
+        background  'mean' or 'dist', with 'mean' the average input is taken as background, with 'dist' the background
+                    is sampled from the distribution of all samples
+
+        Returns
+        -------
+        A feature attribution matrix for each input sample
+        """
+
         def shap_f(z):
+            # Convert the feature input to image input and make a prediction
             return self.model.predict(list_feature_list_to_list_imgs(z))
 
+        # Make an array of the input images
         input_imgs = np.array(list(self.input_images.values()))
+
         if background == 'mean':
+            # Set up the explainer with average background: the average values of the input images is calculated and
+            # converted to a feature list
             explainer = shap.KernelExplainer(shap_f,
                                              img_to_feature_list(get_mean_feature_values(input_imgs))[None, ...])
         elif background == 'dist':
+            # Set up the explainer with background distribution: the input images are converted to a list of feature
+            # lists
             explainer = shap.KernelExplainer(shap_f, imgs_to_list_of_feature_lists(input_imgs))
         else:
             return
+
+        # Calculate the SHAP values
         shap_values = explainer.shap_values(imgs_to_list_of_feature_lists(input_imgs), nsamples=1000)
+        # Convert them back to a list of images
         attributions = list_feature_list_to_list_imgs(shap_values)
+        # Take the absolute value and merge per feature channel
         return tf.reduce_sum(tf.math.abs(attributions), axis=-1).numpy()
 
     def get_ig_attribution(self, input_img):
-        baseline = tf.zeros(shape=(20, 11, 4))  # Baseline for CMYK format. The picture is white in this 4-channel case
+        """
+        Calculate the Integrated Gradients (IG) feature attribution for a single sample
 
-        # ### Linear interpolation path between baseline and input images at alpha intervals
-        m_steps = 50  # number of interpolation steps chosen
-        alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps + 1)  # levels of transparency for each step
+        Parameters
+        ----------
+        input_img   The input for which to calculate the IG feature attributions
+
+        Returns
+        -------
+        The IG feature attribution matrix for this sample
+        """
+
+        # Baseline for CMYK format. The picture is white in this 4-channel case
+        baseline = tf.zeros(shape=(20, 11, 4))
+
+        # Linear interpolation path between baseline and input images at 50 alpha intervals
+        m_steps = 50
+        alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps + 1)
 
         # generate the interpolated images
         path_inputs = generate_path_inputs(baseline=baseline, input=input_img, alphas=alphas)
 
-        # Let's calculate the gradients for each image along the interpolation path with respect to the correct output
+        # Calculate the gradients for each image along the interpolation path with respect to the correct output
         with tf.GradientTape() as tape:
-            tape.watch(path_inputs)  # define on what to calculate the gradients
+            tape.watch(path_inputs)
             outputs = self.model(path_inputs)
-
         path_gradients = tape.gradient(outputs, path_inputs)
 
+        # Apply Riemann Trapozoidal integral approximation
         ig = integral_approximation(gradients=path_gradients, method='riemann_trapezoidal')
 
         attributions = (input_img - baseline) * ig
 
-        # Sum of the attributions across color channels for visualization.
-        # The attribution mask shape is a grayscale image with height and width
-        # equal to the original image.
+        # Take the absolute value and merge per feature channel
         attribution_mask = tf.reduce_sum(tf.math.abs(attributions), axis=-1)
         return attribution_mask.numpy()
 
     def get_saliency_attribution(self, im, method):
-        # definition of the baseline
-        baseline = tf.zeros(shape=(20, 11, 4))  # Baseline for CMYK format. The picture is white in this 4-channel case
+        """
+        Calculate the feature attributions for a single input with a specific 'saliency' method
 
-        # definition of the function to compute the gradients, it will be passed to the various saliency methods
+        Parameters
+        ----------
+        im          Input image
+        method      Saliency method to use for feature attribution extraction
+
+        Returns
+        -------
+        Feature attribution matrix for this sample
+        """
+        # Baseline for CMYK format. The picture is white in this 4-channel case
+        baseline = tf.zeros(shape=(20, 11, 4))
+
+        # Definition of the function to compute the gradients, it will be passed to the various saliency methods
         # functions
         def call_model_function(images, call_model_args=None, expected_keys=None):
             images = tf.convert_to_tensor(images)
@@ -405,6 +705,24 @@ class ImrexAttributionsHandler:
             return mask
 
     def __handle_getter(self, func, self_ret, overwrite, path, name):
+        """
+        Function that manages saving and loading all intermediate results.
+        If the internal variable is already set and overwrite=False: return internal variable
+        If overwrite=True or this result was not saved yet: calculate the result, save to file and set internal variable
+        If overwrite=False and result was already saved: load result from file and set internal variable
+
+        Parameters
+        ----------
+        func        Function to call when calculation is required
+        self_ret    Internal variable to return when already set
+        overwrite   If True, result will always be (re-)calculated
+        path        Path (relative to the save_folder) on which to save or from which to load the intermediate result
+        name        Name of the calculation, only used for logging
+
+        Returns
+        -------
+        The result
+        """
         if self_ret is not None and not overwrite:
             return self_ret
         path = f"{self.save_folder}/{path}"

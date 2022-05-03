@@ -6,15 +6,21 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import torch
-
-from Bio.PDB import PDBParser, Selection
-from Bio.Data.IUPACData import protein_letters_3to1
 from Bio import Align
+from Bio.Data.IUPACData import protein_letters_3to1
+from Bio.PDB import PDBParser, Selection
 from colour import Color
 from matplotlib.colors import ListedColormap
 
 
 def get_cmap():
+    """
+    Create the ListedColormap from lime to blue used to highlight feature attributions on the PDB complex
+
+    Returns
+    -------
+    colormap
+    """
     cmap = [c.rgb for c in list(Color('lime').range_to(Color('blue'), 256))]
     cmap = ListedColormap(cmap)
     cmap.set_bad("white")
@@ -22,6 +28,18 @@ def get_cmap():
 
 
 def split_line(s, max_len):
+    """
+    Insert newlines in string so the width will be <= max_len
+
+    Parameters
+    ----------
+    s           input string
+    max_len     max width (in number of characters)
+
+    Returns
+    -------
+    split string
+    """
     if len(s) > max_len:
         words = s.split(' ')
         new_s = ""
@@ -42,14 +60,47 @@ def split_line(s, max_len):
 
 
 def list_feature_list_to_list_imgs(z):
+    """
+    Convert a list of feature lists to a list of matrices (also see: img_to_feature_list(img))
+
+    Parameters
+    ----------
+    z       list of feature lists
+
+    Returns
+    -------
+
+    """
     return tf.convert_to_tensor(np.reshape(z, (-1, 20, 11, 4)))
 
 
 def get_mean_feature_values(all_imgs):
+    """
+    Get the average matrix from a list of matrices
+
+    Parameters
+    ----------
+    all_imgs    list of matrices
+
+    Returns
+    -------
+    average matrix
+    """
     return np.mean(all_imgs, axis=0)
 
 
 def img_to_feature_list(img):
+    """
+    Convert matrix to list of features by row-wise concatenation
+
+    Parameters
+    ----------
+    img     matrix
+
+    Returns
+    -------
+    list of features
+    """
     if isinstance(img, np.ndarray):
         return img.flatten()
     else:
@@ -57,19 +108,66 @@ def img_to_feature_list(img):
 
 
 def imgs_to_list_of_feature_lists(imgs):
+    """
+    Convert list of matrices to list of feature lists  (also see: img_to_feature_list(img))
+
+    Parameters
+    ----------
+    imgs        list of matrices
+
+    Returns
+    -------
+    list of feature lists
+    """
     return imgs.reshape(imgs.shape[0], -1)
 
 
 def duplicate_input_pair_lists(l, r):
+    """
+    Duplicate both input sequences
+
+    Parameters
+    ----------
+    l       input 1
+    r       input 2
+
+    Returns
+    -------
+    Duplicated l and duplicated r
+    """
     return l.repeat(2, 1), r.repeat(2, 1)
 
 
 def concatted_inputs_to_input_pair_lists(concatted_inputs):
+    """
+    List of concattenated inputs to 2 lists of separate inputs
+
+    Parameters
+    ----------
+    concatted_inputs
+
+    Returns
+    -------
+    2 lists of separated inputs
+    """
     return torch.stack([torch.tensor(i[:25]) for i in concatted_inputs]), torch.stack(
         [torch.tensor(i[25:]) for i in concatted_inputs])
 
 
 def imrex_remove_padding(m, width, height):
+    """
+    Remove padding added by ImRex
+
+    Parameters
+    ----------
+    m           Matrix from which to remove padding
+    width       Final width to reach
+    height      Final height to reac
+
+    Returns
+    -------
+    Matrix without padding
+    """
     ver_padding = m.shape[0] - width
     hor_padding = m.shape[1] - height
 
@@ -86,12 +184,37 @@ def imrex_remove_padding(m, width, height):
 
 
 def aa_remove_padding(att, in_data):
+    """
+    Remove padding added by TITAN
+
+    Parameters
+    ----------
+    att         Array to remove padding from
+    in_data     Original input data, used to know the dimensions without padding
+
+    Returns
+    -------
+    Array without padding
+    """
     start_indices = np.where(in_data == 30)[0]
     end_indices = np.where(in_data == 31)[0]
     return np.concatenate((att[start_indices[0] + 1:end_indices[0]], att[start_indices[1] + 1:end_indices[1]]))
 
 
 def aa_add_padding(aa, l, fill=np.nan):
+    """
+    Add padding to AA data
+
+    Parameters
+    ----------
+    aa      array to add padding to
+    l       final lenght to reach
+    fill    number to use as padding (np.nan by default)
+
+    Returns
+    -------
+    Padded array
+    """
     if len(aa) > l:
         print(f'Input {aa} already longer than padding length {l}')
     if len(aa) == l:
@@ -102,8 +225,19 @@ def aa_add_padding(aa, l, fill=np.nan):
     return np.concatenate(([fill] * pad_before, aa, [fill] * pad_after))
 
 
-# Rescale [x, y] from [0, y] to [0, 1]
 def normalize_2d(m):
+    """
+    Normalize matrix by dividing each value by the max value of the matrix. The largest value will become 1, the
+    smallest not necessary zero
+
+    Parameters
+    ----------
+    m       matrix to normalize
+
+    Returns
+    -------
+    normalized matrix
+    """
     max_val = np.max(m)
     if max_val == 0.0:
         return m
@@ -112,18 +246,55 @@ def normalize_2d(m):
 
 
 def error_setup(dm, att):
+    """
+    Setup for error calculation: normalize inverse of distance matrix and normalize attribution matrix
+
+    Parameters
+    ----------
+    dm      distance matrix
+    att     attribution matrix
+
+    Returns
+    -------
+    prepared distance matrix and attribution matrix
+    """
     dm = normalize_2d(1 / dm)
     att = normalize_2d(att)
     return dm, att
 
 
-# ROOT MEAN SQUARED ERROR
 def rmse(dm, att):
+    """
+    Calculate the root-mean-square error (RMSE) between the distance matrix and attribution matrix.
+    The distance matrix is first inverted and normalized, the attribution matrix is first normalized.
+
+    Parameters
+    ----------
+    dm      distance matrix
+    att     attribution matrix
+
+    Returns
+    -------
+    RMSE
+    """
     dm, att = error_setup(dm, att)
     return np.sqrt(np.mean(np.square(dm - att)))
 
 
 def matrix_to_aa(m, method):
+    """
+    Merge a (k x l) matrix to an array using the 'min' or 'max' method. This takes the min/max for each row and column and
+    concatenates those results into an array of length k + l.
+    Parameters
+    ----------
+    m           matrix to merge
+    method      Method to use. 'min' for taking the minimum, used on distance matrices. 'max' for taking the maximum,
+                used on attribution matrices.
+
+    Returns
+    -------
+    Array of merged matrix
+    """
     if method == 'min':
         ep_dist = np.min(m, axis=0)
         cdr3_dist = np.min(m, axis=1)
@@ -136,8 +307,20 @@ def matrix_to_aa(m, method):
     return np.concatenate((ep_dist, cdr3_dist))
 
 
-# fuction to generate the linear interpolations
 def generate_path_inputs(baseline, input, alphas):
+    """
+    Create path inputs for IG
+
+    Parameters
+    ----------
+    baseline    baseline image
+    input       input image
+    alphas      interpolation steps
+
+    Returns
+    -------
+    interpolated inputs
+    """
     # Expand dimensions for vectorized computation of interpolations.
     alphas_x = alphas[:, tf.newaxis, tf.newaxis, tf.newaxis]
     baseline_x = tf.expand_dims(baseline, axis=0)
@@ -148,11 +331,21 @@ def generate_path_inputs(baseline, input, alphas):
     return path_inputs
 
 
-# Integral approximation:
-# Solves the problem of discontinuous gradient feature importances by taking small steps in the feature space to compute
-# local gradients between predictions and inputs across the feature space and then averages these gradients together to
-# produce feature attributions.
 def integral_approximation(gradients, method='riemann_trapezoidal'):
+    """
+    Solves the problem of discontinuous gradient feature importances by taking small steps in the feature space to
+    compute local gradients between predictions and inputs across the feature space and then averages these gradients
+    together to produce feature attributions.
+
+    Parameters
+    ----------
+    gradients   input gradients
+    method      method for integral approximation
+
+    Returns
+    -------
+    IG
+    """
     # different ways to compute the numeric approximation with different tradeoffs
     # riemann trapezoidal usually the most accurate
     if method == 'riemann_trapezoidal':
@@ -173,6 +366,25 @@ def integral_approximation(gradients, method='riemann_trapezoidal'):
 
 
 def pdb2fasta_mapper(pdb_filepath, pdb_id, model, chain, fasta_seq):
+    """
+    The amino acids in the PDB file use other indices than those in the FASTA sequence format. This function uses
+    pairwise alignment to match the amino acids and create a mapper to convert the index from the PDB file to the
+    corresponding index in the FASTA sequence.
+
+    This dict can be reversed (value -> key) to create a FASTA to PDB mapper.
+
+    Parameters
+    ----------
+    pdb_filepath    Path to the PDB file
+    pdb_id          PDB ID
+    model           Model ID in the PDB file, usually 0
+    chain           ID of the TCRB chain in the PDB file
+    fasta_seq       FASTA sequence to align to
+
+    Returns
+    -------
+    A 'mapper' (dict) with key PDB_ID and value FASTA_ID
+    """
     parser = PDBParser(QUIET=True)
     structure = parser.get_structure(pdb_id, pdb_filepath)
     pdb_tcrb_chain = structure[model][chain]
@@ -199,7 +411,51 @@ def pdb2fasta_mapper(pdb_filepath, pdb_id, model, chain, fasta_seq):
     return pdb2fasta_mapper
 
 
+def seq2i_mapper(df, data_col):
+    """
+    Creates a mapper from TCR/epitope sequence to ID from the TCR/epitope file
+
+    Parameters
+    ----------
+    df          Pandas dataframe of the TCR/epitope file
+    data_col    Column name of the TCR/epitope sequences
+
+    Returns
+    -------
+    A 'mapper' dict with key: TCR/epitope sequence and value: ID in the TCR/epitope file
+    """
+    return pd.Series(df['i'].values, index=df[data_col]).to_dict()
+
+
+def i2seq_mapper(df, data_col):
+    """
+    Creates a mapper from the TCR/epitope file ID to the TCR/epitope sequence
+
+    Parameters
+    ----------
+    df          Pandas dataframe of the TCR/epitope file
+    data_col    Column name of the TCR/epitope sequences
+
+    Returns
+    -------
+    A 'mapper' dict with key: ID in the TCR/epitope file and value: the TCR/epitope sequence
+    """
+    return pd.Series(df[data_col].values, index=df['i']).to_dict()
+
+
 def residue_distance_min(res1, res2):
+    """
+    Calculate the (minimal) distance between 2 amino acids by returning the distance of the 2 closest atoms.
+
+    Parameters
+    ----------
+    res1    Amino acid 1
+    res2    Amino acid 2
+
+    Returns
+    -------
+    Distance
+    """
     dist = np.inf
     for a1 in res1:
         for a2 in res2:
@@ -210,6 +466,13 @@ def residue_distance_min(res1, res2):
 
 
 def get_distance_matrices():
+    """
+    Calculate the distance matrix between the epitope and CDR3 sequence for each PDB complex.
+
+    Returns
+    -------
+    A distance matrix for each PDB complex
+    """
     tcr3df = pd.read_csv("data/tcr3d_imrex_output.csv")
     complex_data_df = pd.read_csv('data/complex_data_original.csv', index_col=0)
     distance_matrices = {}

@@ -1,16 +1,21 @@
 import os
+
 import pandas as pd
 
-
-def seq2i_mapper(df, data_col):
-    return pd.Series(df['i'].values, index=df[data_col]).to_dict()
-
-
-def i2seq_mapper(df, data_col):
-    return pd.Series(df[data_col].values, index=df['i']).to_dict()
+from src.util import seq2i_mapper
 
 
 def transform_data_cv(data_folder, save_folder, all_epitopes, all_tcrs):
+    """
+    Convert the ImRex data to suitable TITAN input
+
+    Parameters
+    ----------
+    data_folder     Folder with ImRex pre-processed data
+    save_folder     Path to save the data
+    all_epitopes    File with the epitope IDs created based on the ImRex samples
+    all_tcrs        File with the TCR IDs created based on the ImRex samples
+    """
     ep_mapper = seq2i_mapper(all_epitopes, 'ep')
     cdr3_mapper = seq2i_mapper(all_tcrs, 'cdr3')
 

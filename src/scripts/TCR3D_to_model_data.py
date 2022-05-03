@@ -1,15 +1,12 @@
-"""
-Used to convert the molecular complex data to input for ImRex and TITAN for feature attribution extraction
-"""
-
 import pandas as pd
 
-
-def seq2i_mapper(df, data_col):
-    return pd.Series(df['i'].values, index=df[data_col]).to_dict()
+from src.util import seq2i_mapper
 
 
 def tcr3d_to_imrex():
+    """
+    Convert PDB data to suitable ImRex input
+    """
     tcr3df = pd.read_csv("data/complex_data_original.csv")
     imrex_data = pd.DataFrame(
         {'PDB_ID': tcr3df['PDB_ID'], 'cdr3': tcr3df['cdr3'], 'antigen.epitope': tcr3df['antigen.epitope']})
@@ -17,6 +14,9 @@ def tcr3d_to_imrex():
 
 
 def create_tcr3d_all_files():
+    """
+    Create TCR and epitope files from PDB data for TITAN
+    """
     tcr3df = pd.read_csv("data/complex_data_original.csv")
     all_epitopes = pd.DataFrame({'ep': tcr3df['antigen.epitope'].unique()})
     all_epitopes['i'] = all_epitopes.index
@@ -29,6 +29,9 @@ def create_tcr3d_all_files():
 
 
 def tcr3d_to_titan():
+    """
+    Convert PDB data to input suitable for TITAN
+    """
     tcr3df = pd.read_csv("data/tcr3d_imrex_output.csv")
     all_epitopes = pd.read_csv(f'data/epitopes.csv', sep='\t', header=None, names=['ep', 'i'])
     all_tcrs = pd.read_csv(f'data/tcrs.csv', sep='\t', header=None, names=['cdr3', 'i'])

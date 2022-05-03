@@ -2,6 +2,14 @@ import pandas
 
 
 def create_full_metrics(model, cvs):
+    """
+    Create an overview of the validation ROC AUC and PR AUC per cross-validation split
+
+    Parameters
+    ----------
+    model       TITAN model name
+    cvs         Number of cross-validation splits
+    """
     result_list = []
     for cv in range(cvs):
         results = pandas.read_csv(f'TITAN/models/{model}/cv{cv}/results_overview.csv', header=None,

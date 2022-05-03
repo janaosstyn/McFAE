@@ -2,6 +2,14 @@ import pandas
 
 
 def main(data_path, save_nocdr3_path):
+    """
+    Remove samples already present in the PDB dataset from the ImRex dataset
+
+    Parameters
+    ----------
+    data_path           ImRex data path
+    save_nocdr3_path    New data path
+    """
     pdb_data = pandas.read_csv('ImRex/data/interim/TCR3D_valid.csv')
     imrex_data = pandas.read_csv(data_path, sep=";")
 

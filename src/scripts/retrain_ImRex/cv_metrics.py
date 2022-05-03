@@ -2,6 +2,13 @@ import pandas
 
 
 def imrex_cv(model):
+    """
+    Create an overview of the validation ROC AUC and PR AUC per cross-validation split
+
+    Parameters
+    ----------
+    model       ImRex model name
+    """
     result_list = []
     for cv in range(5):
         results = pandas.read_csv(f'ImRex/models/models/{model}/iteration_{cv}/metrics.csv')

@@ -2,25 +2,65 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import precision_score, recall_score
 
-
-def i2seq_mapper(df, data_col):
-    return pd.Series(df[data_col].values, index=df['i']).to_dict()
+from src.util import i2seq_mapper
 
 
 def precision_group(x):
+    """
+    Calculate the precision score on a group of samples
+
+    Parameters
+    ----------
+    x       Group of samples
+
+    Returns
+    -------
+    Precision score
+    """
     return precision_score(x['label'].to_numpy(dtype=float), np.round(x['pred'].to_numpy()))
 
 
 def recall_group(x):
+    """
+    Calculate the recall score on a group of samples
+
+    Parameters
+    ----------
+    x       Group of samples
+
+    Returns
+    -------
+    Recall score
+    """
     return recall_score(x['label'].to_numpy(dtype=float), np.round(x['pred'].to_numpy()))
 
 
 def positive_rate_group(x):
+    """
+    Calculate the predicted positive rate (% of samples that have a positive prediction) for a group of samples
+
+    Parameters
+    ----------
+    x       Group of samples
+
+    Returns
+    -------
+    Predicted positive ratio
+    """
     preds = np.round(x['pred'].to_numpy())
     return np.count_nonzero(preds) / len(preds)
 
 
 def inspect_titan_dataset(datafolder, model, cv):
+    """
+    Create the TITAN data inspection table from the manuscript
+
+    Parameters
+    ----------
+    datafolder      TITAN data folder
+    model           TITAN model name
+    cv              cross-validation split to use
+    """
     titan_p = f"TITAN/data/{datafolder}/fold{cv}/test+covid.csv"
     titan_train_p = f"TITAN/data/{datafolder}/fold{cv}/train+covid.csv"
     titan_predictions = np.load(f'TITAN/models/{model}/cv{cv}/{model}_{cv}/results/ROC-AUC_preds.npy')

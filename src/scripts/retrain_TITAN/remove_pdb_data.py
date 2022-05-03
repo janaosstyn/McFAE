@@ -1,16 +1,21 @@
 import os
+
 import pandas as pd
 
-
-def seq2i_mapper(df, data_col):
-    return pd.Series(df['i'].values, index=df[data_col]).to_dict()
-
-
-def i2seq_mapper(df, data_col):
-    return pd.Series(df[data_col].values, index=df['i']).to_dict()
+from src.util import seq2i_mapper, i2seq_mapper
 
 
 def remove_3d_cdr3s_from_titan(data_path, save_folder, all_epitopes, all_tcrs):
+    """
+    Remove samples also present in the PDB data from the TITAN data
+
+    Parameters
+    ----------
+    data_path       TITAN data to remove from
+    save_folder     Folder to save new data
+    all_epitopes    File with TITAN epitopes
+    all_tcrs        File with TITAN TCRs
+    """
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 

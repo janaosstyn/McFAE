@@ -1,8 +1,12 @@
 import random
+
 import pandas as pd
 
 
 def scramble_tcrs():
+    """
+    Create a new TITAN TCR file with scrambled TCR sequences. The amino acid usage distribution is kept.
+    """
     all_tcrs = pd.read_csv(f'TITAN/data/tcr.csv', sep='\t', header=None, names=['cdr3', 'i'])
     aa_list = list({char for seq in all_tcrs['cdr3'].values for char in seq})
     new_tcrs = []
