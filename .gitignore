@@ -28,3 +28,5 @@ __pycache__/
 !data/tcr3d_images/*.zip
 
 ImRex/src.egg-info/
+
+McFAE.egg-info/

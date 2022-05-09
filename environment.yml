@@ -36,4 +36,4 @@ dependencies:
     - shap==0.40.0
     - saliency==0.1.3
     - colour==0.1.5
-    - "--editable ."
+    - "."
