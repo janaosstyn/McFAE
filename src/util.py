@@ -519,3 +519,23 @@ def setup_logger(name):
     logging.getLogger("shap").setLevel(logging.WARNING)
 
     return logging.getLogger(__name__)
+
+
+def correlation_nan(f, x, y, replace=0.):
+    """
+    Calculate the correlation between input 1 (x) and input 2 (y), if the correlation is NaN, replace with the replace
+    value
+
+    Parameters
+    ----------
+    f           correlation function
+    x           input 1
+    y           input 2
+    replace     value to replace a NaN correlation with
+
+    Returns
+    -------
+    Correlation between x and y or replace when NaN
+    """
+    c = f(x, y)[0]
+    return replace if np.isnan(c) else c

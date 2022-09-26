@@ -1,6 +1,6 @@
 
 
-@[working_directory]/TCR3D_attributions/data/imrex_nocdr3dup/pymol_scripts/2P5W.pml
+@[working_directory]/McFAE/data/imrex_nocdr3dup/pymol_scripts_SmoothGrad/2P5W.pml
 
 remove solvent
 
@@ -8,17 +8,35 @@ rotate z, 150
 rotate x, -40
 move y, 5
 
-png [working_directory]/TCR3D_attributions/output/plots/pymol_imrex_attributions/2P5W.png, dpi=300, width=3000
+one_letter ={'VAL':'V', 'ILE':'I', 'LEU':'L', 'GLU':'E', 'GLN':'Q', \
+'ASP':'D', 'ASN':'N', 'HIS':'H', 'TRP':'W', 'PHE':'F', 'TYR':'Y',    \
+'ARG':'R', 'LYS':'K', 'SER':'S', 'THR':'T', 'MET':'M', 'ALA':'A',    \
+'GLY':'G', 'PRO':'P', 'CYS':'C'}
+label name ca and chain E and resi 89-102 , one_letter[resn]
+label name ca and chain C, one_letter[resn]
+set label_position, (2.5,3.5,10), chain C
+set label_position, (-0.5,2.5,10), chain E
+set label_position, (0.5,3,10), resi 96
 
-@[working_directory]/TCR3D_attributions/data/titan_strictsplit/pymol_scripts/2P5W.pml
-png [working_directory]/TCR3D_attributions/output/plots/pymol_titan_strictsplit_attributions/2P5W.png, dpi=300, width=3000
+set ray_opaque_background, on
 
-@[working_directory]/TCR3D_attributions/data/titan_nocdr3dup/pymol_scripts/2P5W.pml
-png [working_directory]/TCR3D_attributions/output/plots/pymol_titan_nocdr3dup_attributions/2P5W.png, dpi=300, width=3000
+png [working_directory]/McFAE/output/plots/pymol_imrex_attributions/2P5W_SmoothGrad.png, dpi=300, width=3000, ray=1
+
+@[working_directory]/McFAE/data/titan_strictsplit/pymol_scripts_SmoothGrad/2P5W.pml
+png [working_directory]/McFAE/output/plots/pymol_titan_strictsplit_attributions/2P5W_SmoothGrad.png, dpi=300, width=3000, ray=1
+
+@[working_directory]/McFAE/data/titan_nocdr3dup/pymol_scripts_SmoothGrad/2P5W.pml
+png [working_directory]/McFAE/output/plots/pymol_titan_nocdr3dup_attributions/2P5W_SmoothGrad.png, dpi=300, width=3000, ray=1
 
 3D structure without attributions:
-load [working_directory]/TCR3D_attributions/data/pdb/2p5w.pdb
+load [working_directory]/McFAE/data/pdb/2p5w.pdb
 bg_color white
+hide everything, chain A
+hide everything, chain B
+hide everything, chain D
+color grey80, chain E
+zoom chain C or (chain E and resi 89-102)
+orient chain C or (chain E and resi 89-102)
 
 remove solvent
 
@@ -28,4 +46,4 @@ move y, 5
 
 color br9, chain E and resi 89-102
 color 0x00ff51, chain C
-png [working_directory]/TCR3D_attributions/output/plots/2P5W.png, dpi=300, width=3000
+png [working_directory]/McFAE/output/plots/2P5W.png, dpi=300, width=3000, ray=1

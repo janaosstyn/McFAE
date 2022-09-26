@@ -6,6 +6,7 @@ import pandas as pd
 import saliency.core as saliency
 import shap
 import tensorflow as tf
+from scipy.stats import pearsonr
 
 from src.util import imrex_remove_padding, imgs_to_list_of_feature_lists, generate_path_inputs, setup_logger, \
     get_distance_matrices, normalize_2d, rmse, matrix_to_aa, list_feature_list_to_list_imgs, img_to_feature_list, \
@@ -42,6 +43,8 @@ class ImrexAttributionsHandler:
         self.norm_distances = None
         self.errors = None
         self.random_error = None
+        self.correlation = None
+        self.random_correlation = None
 
         self.aa_attributions = None
         self.aa_norm_attributions = None
@@ -51,6 +54,10 @@ class ImrexAttributionsHandler:
         self.aa_errors_ps = None
         self.aa_random_error = None
         self.aa_random_error_ps = None
+        self.aa_correlation = None
+        self.aa_correlation_ps = None
+        self.aa_random_correlation = None
+        self.aa_random_correlation_ps = None
 
         # Create folder to save results if it does not exists yet
         if not os.path.exists(f"{self.save_folder}/{self.name}"):
@@ -229,6 +236,73 @@ class ImrexAttributionsHandler:
                                                  'random_error')
         return self.random_error
 
+    def get_correlation(self, overwrite=False):
+        """
+        Calculate and save the correlation between the attributions and distances, loaded from file if already saved
+        previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, the correlation will be re-calculated and overwrite the old saved result, the original
+                    distances and attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the Correlation for each PDB complex
+        """
+
+        def correlation():
+            attributions = self.get_attributions()
+            distances = self.get_distances()
+            pearson_corr_dict = {}
+            for pdb_id, methods in attributions.items():
+                dist = distances[pdb_id]
+                pearson_corr_pdb = {}
+                for method, attribution in methods.items():
+                    pearson_corr_pdb[method] = pearsonr(dist.flatten(), attribution.flatten())[0]
+                pearson_corr_dict[pdb_id] = pearson_corr_pdb
+                self.logger.info(f'{pdb_id} done')
+            return pearson_corr_dict
+
+        self.correlation = self.__handle_getter(correlation, self.correlation, overwrite, f"{self.name}/correlation.p",
+                                                f'correlation')
+        return self.correlation
+
+    def get_random_correlation(self, overwrite=False):
+        """
+        Calculate and save the random correlation by taking the correlation between a random feature attribution matrix
+        and the distance matrix of each PDB complex 1000 times, loaded from file if already saved previously
+        (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, the random correlation will be re-calculated and overwrite the old saved result, the
+                    original distances will not be re-calculated.
+
+        Returns
+        -------
+        The tuple (mean_random_corr, std_random_corr)
+        """
+
+        def random_correlation():
+            distances = self.get_distances()
+            random_pearson_corr = []
+            for pdb_id, dist_m in distances.items():
+                # Repeat 1000 times
+                for i in range(1000):
+                    # Get a random matrix with same shape as distance matrix
+                    random_m = np.random.rand(*dist_m.shape)
+                    # calculate correlation
+                    random_pearson_corr.append(pearsonr(dist_m.flatten(), random_m.flatten())[0])
+                self.logger.info(f'{pdb_id} done')
+            # Return mean and std
+            return np.mean(random_pearson_corr), np.std(random_pearson_corr)
+
+        self.random_correlation = self.__handle_getter(random_correlation, self.random_correlation, overwrite,
+                                                       "imrex_random_correlation.p",
+                                                       'random correlation')
+        return self.random_correlation
+
     def get_aa_attributions(self, overwrite=False):
         """
         Calculate and save the feature attributions merged per AA, loaded from file if already saved previously
@@ -272,6 +346,7 @@ class ImrexAttributionsHandler:
         -------
         A dict with the normalized feature attributions for each PDB complex
         """
+
         def norm_attributions():
             attributions = self.get_attributions()
             norm_attributions = {}
@@ -503,6 +578,147 @@ class ImrexAttributionsHandler:
                                                        f"aa_random_error_ps.p", 'AA random error per sequence')
         return self.aa_random_error_ps
 
+    def get_aa_correlation(self, overwrite=False):
+        """
+        Calculate and save the correlation between the AA distance and AA feature attributions, loaded from file if
+        already saved previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, AA correlation will be re-calculated and overwrite the old saved result, the original AA
+                    distances and AA attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA correlation for each PDB complex
+        """
+
+        def aa_correlation():
+            aa_attributions = self.get_aa_attributions()
+            aa_distances = self.get_aa_distances()
+            pearson_correlation_dict = {}
+            for pdb_id, methods in aa_attributions.items():
+                aa_dist = aa_distances[pdb_id]
+                pearson_corr_pdb = {}
+                for method, attribution in methods.items():
+                    pearson_corr_pdb[method] = pearsonr(aa_dist.flatten(), attribution.flatten())[0]
+                pearson_correlation_dict[pdb_id] = pearson_corr_pdb
+            return pearson_correlation_dict
+
+        self.aa_correlation = self.__handle_getter(aa_correlation, self.aa_correlation, overwrite,
+                                                   f"{self.name}/aa_correlation.p", 'AA correlation')
+        return self.aa_correlation
+
+    def get_aa_correlation_ps(self, overwrite=False):
+        """
+        Calculate and save the AA correlation per sequence (epitope and CDR3) separately, loaded from file if already
+        saved previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, AA correlation per sequence will be re-calculated and overwrite the old saved result, the
+                    original AA distances and AA attributions will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA correlation per sequence for each PDB complex
+        """
+
+        def aa_correlation_ps():
+            tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
+            aa_attributions = self.get_aa_attributions()
+            aa_distances = self.get_aa_distances()
+            pearson_correlation_dict = {}
+            for pdb_id, methods in aa_attributions.items():
+                aa_dist = aa_distances[pdb_id]
+                # Get starting index of epitope
+                seq_split = len(tcr3df.loc[pdb_id]['antigen.epitope'])
+                pearson_correlation_dict[pdb_id] = {}
+                for method, attribution in methods.items():
+                    # Split distance and attributions arrays in epitope and CDR3
+                    ep_aa_dist = aa_dist[:seq_split]
+                    cdr3_aa_dist = aa_dist[seq_split:]
+                    ep_attribution = attribution[:seq_split]
+                    cdr3_attribution = attribution[seq_split:]
+                    # Calculate correlation separately for epitope and CDR3
+                    pearson_correlation_dict[pdb_id][method] = (
+                        pearsonr(ep_aa_dist.flatten(), ep_attribution.flatten())[0],
+                        pearsonr(cdr3_aa_dist.flatten(), cdr3_attribution.flatten())[0])
+            return pearson_correlation_dict
+
+        self.aa_correlation_ps = self.__handle_getter(aa_correlation_ps, self.aa_correlation_ps, overwrite,
+                                                      f"{self.name}/aa_correlation_ps.p", 'AA correlation per sequence')
+        return self.aa_correlation_ps
+
+    def get_aa_random_correlation(self, overwrite=False):
+        """
+        Calculate and save the random correlation between the AA distance and AA feature attributions, loaded from file
+        if already saved previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, the AA random correlation will be re-calculated and overwrite the old saved result, the
+                    original AA distances will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA random correlation for each PDB complex
+        """
+
+        def aa_random_correlation():
+            pearson_correlation = []
+            aa_distances = self.get_aa_distances()
+            for pdb_id, aa_dist in aa_distances.items():
+                for i in range(1000):
+                    # Get random array with same length as distance array
+                    random_a = np.random.rand(len(aa_dist))
+                    pearson_correlation.append(pearsonr(aa_dist.flatten(), random_a.flatten())[0])
+            return np.mean(pearson_correlation), np.std(pearson_correlation)
+
+        self.aa_random_correlation = self.__handle_getter(aa_random_correlation, self.aa_random_correlation, overwrite,
+                                                          f"aa_random_correlation.p", 'AA random correlation')
+        return self.aa_random_correlation
+
+    def get_aa_random_correlation_ps(self, overwrite=False):
+        """
+        Calculate and save the AA random correlation per sequence (epitope and CDR3), loaded from file if already saved
+        previously (and overwrite=False)
+
+        Parameters
+        ----------
+        overwrite   If True, the AA random correlation per sequence will be re-calculated and overwrite the old saved
+                    result, the original AA distances will not be re-calculated.
+
+        Returns
+        -------
+        A dict with the AA random correlation per sequence for each PDB complex
+        """
+
+        def aa_random_correlation_ps():
+            pearson_correlation_ep = []
+            pearson_correlation_cdr3 = []
+            tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
+            aa_distances = self.get_aa_distances()
+            for pdb_id, aa_dist in aa_distances.items():
+                ep_len = len(tcr3df.loc[pdb_id]['antigen.epitope'])
+                cdr3_len = len(tcr3df.loc[pdb_id]['cdr3'])
+                for i in range(1000):
+                    random_a_ep = np.random.rand(ep_len)
+                    aa_dist_ep = aa_dist[:ep_len]
+                    random_a_cdr3 = np.random.rand(cdr3_len)
+                    aa_dist_cdr3 = aa_dist[ep_len:]
+                    pearson_correlation_ep.append(pearsonr(aa_dist_ep.flatten(), random_a_ep.flatten())[0])
+                    pearson_correlation_cdr3.append(pearsonr(aa_dist_cdr3.flatten(), random_a_cdr3.flatten())[0])
+                print(f'{pdb_id} done')
+            return (np.mean(pearson_correlation_ep), np.std(pearson_correlation_ep)), (
+                np.mean(pearson_correlation_cdr3), np.std(pearson_correlation_cdr3))
+
+        self.aa_random_correlation_ps = self.__handle_getter(aa_random_correlation_ps, self.aa_random_correlation_ps,
+                                                             overwrite,
+                                                             f"aa_random_correlation_ps.p",
+                                                             'AA random correlation per sequence')
+        return self.aa_random_correlation_ps
+
     def set_all(self, overwrite=False):
         """
         Calculate and save all results for this model, results are loaded from file if already saved previously
@@ -526,6 +742,12 @@ class ImrexAttributionsHandler:
         self.get_aa_errors_ps(overwrite)
         self.get_aa_random_error(overwrite)
         self.get_aa_random_error_ps(overwrite)
+        self.get_correlation(overwrite)
+        self.get_random_correlation(overwrite)
+        self.get_aa_correlation(overwrite)
+        self.get_aa_correlation_ps(overwrite)
+        self.get_aa_random_correlation(overwrite)
+        self.get_aa_random_correlation_ps(overwrite)
 
     def imrex_setup(self):
         """
@@ -551,7 +773,7 @@ class ImrexAttributionsHandler:
 
         Returns
         -------
-        The predicted binding probability
+        The predicted binding class (0 or 1)
         """
         # Prepare input shape
         image_batch = tf.expand_dims(img, 0)

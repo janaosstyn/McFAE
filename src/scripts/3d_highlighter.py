@@ -108,7 +108,7 @@ def write_all_attribution_highlight_scripts(modelhandler, method='SHAP BGdist'):
         ep_highlight = dict(enumerate(attributions[:len(ep_seq)]))
         cdr3_highlight = dict(enumerate(attributions[len(ep_seq):]))
         # Create the save folder
-        save_folder = f'{modelhandler.save_folder}/{modelhandler.name}/pymol_scripts'
+        save_folder = f'{modelhandler.save_folder}/{modelhandler.name}/pymol_scripts_{method}'
         if not os.path.exists(save_folder):
             os.makedirs(save_folder)
         write_script(pdb_id, cdr3_highlight, ep_highlight, save_folder)
@@ -144,9 +144,9 @@ def main():
         data_path='data/tcr3d_titan_input.csv',
         save_folder='data'
     )
-    write_all_attribution_highlight_scripts(imrex_attribution_handler)
-    write_all_attribution_highlight_scripts(titan_strictsplit_handler)
-    write_all_attribution_highlight_scripts(titan_on_imrex_data_handler)
+    write_all_attribution_highlight_scripts(imrex_attribution_handler, 'SmoothGrad')
+    write_all_attribution_highlight_scripts(titan_strictsplit_handler, 'SmoothGrad')
+    write_all_attribution_highlight_scripts(titan_on_imrex_data_handler, 'SmoothGrad')
 
 
 if __name__ == "__main__":

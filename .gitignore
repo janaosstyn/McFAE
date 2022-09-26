@@ -10,22 +10,24 @@ __pycache__/
 /output/plots/pymol_titan_strictsplit_attributions/*
 /output/plots/sample_2d_details/*
 /output/plots/sample_details/*
-/data/**/pymol_scripts/*
+/data/**/pymol_scripts_*/*
 /data/**/pdb/*
 /data/tcr3d_images/*
-
+/data/tcr3d_images_new/*
 
 
 !/output/plots/imrex_input_features/2P5W.png
-!/output/plots/pymol_imrex_attributions/2P5W.png
-!/output/plots/pymol_titan_nocdr3dup_attributions/2P5W.png
-!/output/plots/pymol_titan_strictsplit_attributions/2P5W.png
+!/output/plots/pymol_imrex_attributions/2P5W_SmoothGrad.png
+!/output/plots/pymol_titan_nocdr3dup_attributions/2P5W_SmoothGrad.png
+!/output/plots/pymol_titan_strictsplit_attributions/2P5W_SmoothGrad.png
 !/output/plots/sample_2d_details/2P5W_4_methods.png
-!/output/plots/sample_details/2P5W_all.png
-!/output/plots/sample_details/2P5W_imrextitan.png
+!/output/plots/sample_details/SmoothGrad_2P5W_imrextitan.png
+!/output/plots/sample_details/TITAN_2P5W.png
 !data/**/pymol_scripts/*.zip
 !data/**/pdb/*.zip
 !data/tcr3d_images/*.zip
+!data/tcr3d_images_new/*.zip
+
 
 ImRex/src.egg-info/
 
