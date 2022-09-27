@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='McFAE',
-    version='0.1.0',
+    version='0.2.0',
     packages=find_packages(),
     url='https://github.com/PigeonMark/McFAE',
     license='Apache 2.0',
