@@ -491,33 +491,33 @@ def main():
     sns.set_palette("deep")
 
     # Fig 2: Correlation comparison of 4 extraction methods for ImRex pairwise, ImRex AA and TITAN
-    # plot_method_correlation_comparison_all_models_subset([imrex_attributions_handler, titan_strictsplit_handler])
+    plot_method_correlation_comparison_all_models_subset([imrex_attributions_handler, titan_strictsplit_handler])
 
     # Fig 3: Feature attributions for ImRex AA and TITAN and Residue proximity
-    # plot_sample_details([imrex_attributions_handler, titan_strictsplit_handler], 'SmoothGrad', 'imrextitan')
+    plot_sample_details([imrex_attributions_handler, titan_strictsplit_handler], 'SmoothGrad', 'imrextitan')
 
     # Fig 4: Average feature attributions for ImRex AA and TITAN and Residue proximity
-    # plot_positional_average([imrex_attributions_handler, titan_strictsplit_handler], 'SmoothGrad', 'imrextitan')
+    plot_positional_average([imrex_attributions_handler, titan_strictsplit_handler], 'SmoothGrad', 'imrextitan')
 
     # Fig 5: Compare correlation between ImRex AA and TITAN and epitope/CDR3
-    # plot_aa_model_comparison([imrex_attributions_handler, titan_strictsplit_handler], 0, 'SmoothGrad', 'imrextitan',
-    #                          (6.4 / 1.05, 4.8 / 1.05))
+    plot_aa_model_comparison([imrex_attributions_handler, titan_strictsplit_handler], 0, 'SmoothGrad', 'imrextitan',
+                             (6.4 / 1.05, 4.8 / 1.05))
 
     # Fig 6: Model performance
-    # plot_model_performance()
+    plot_model_performance()
 
     # Fig S1: ImRex 2D feature encoding input
-    # plot_2d_ImRex_input('data/tcr3d_images_new/', imrex_attributions_handler)
+    plot_2d_ImRex_input('data/tcr3d_images_new/', imrex_attributions_handler)
 
     # Fig S2: Same as Fig 2 but with all extraction methods
-    # plot_method_correlation_comparison(imrex_attributions_handler)
-    # plot_method_correlation_comparison(titan_strictsplit_handler)
+    plot_method_correlation_comparison(imrex_attributions_handler)
+    plot_method_correlation_comparison(titan_strictsplit_handler)
 
     # Fig S3 and S4: Detailed feature attributions for ImRex and TITAN
-    # plot_2d_sample_attributions(imrex_attributions_handler, ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'],
-    #                             "4_methods")
-    # plot_TITAN_methods_sample_details(titan_strictsplit_handler, imrex_attributions_handler,
-    #                                   ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'])
+    plot_2d_sample_attributions(imrex_attributions_handler, ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'],
+                                "4_methods")
+    plot_TITAN_methods_sample_details(titan_strictsplit_handler, imrex_attributions_handler,
+                                      ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'])
 
     # Fig S5: Average feature attribution for the 3 models
     plot_positional_average([imrex_attributions_handler, titan_strictsplit_handler, titan_on_imrex_data_handler],
