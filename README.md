@@ -52,7 +52,7 @@ The data for this step is already present but can be recreated with:
 
     python src/scripts/TCR3D_to_model_data.py
 
-All feature attributions, distance matrices, RMSE's and intermediary results are saved in  `/data`
+All feature attributions, distance matrices, correlation and intermediary results are saved in  `/data`
 folder where a subfolder is made for each model configuration. All results can be reproduced by running:
 
     python src/imrex_attributions.py
@@ -60,7 +60,7 @@ folder where a subfolder is made for each model configuration. All results can b
 
 This will produce all results that are not yet present in the `/data/{configuration_name}` folder and save them in the
 appropriate place. Always run `imrex_attributions.py` first, this also calculates shared results like molecular complex
-distance and random error.
+distance and random correlation.
 
 Recreating the PyMol scripts to show feature attributions on the molecular complex can be done with
 
