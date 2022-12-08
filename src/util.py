@@ -521,10 +521,10 @@ def setup_logger(name):
     return logging.getLogger(__name__)
 
 
-def correlation_nan(f, x, y, replace=0.):
+def correlation_nan(f, x, y, replace=0., with_p=False):
     """
-    Calculate the correlation between input 1 (x) and input 2 (y), if the correlation is NaN, replace with the replace
-    value
+    Calculate the correlation and p-value between input 1 (x) and input 2 (y), if the correlation is NaN, replace with
+    the replace value
 
     Parameters
     ----------
@@ -532,10 +532,26 @@ def correlation_nan(f, x, y, replace=0.):
     x           input 1
     y           input 2
     replace     value to replace a NaN correlation with
+    with_p      Also return the p-value of the correlation if True
 
     Returns
     -------
-    Correlation between x and y or replace when NaN
+    Correlation between x and y or replace when NaN, p-value if with_p is True
     """
-    c = f(x, y)[0]
-    return replace if np.isnan(c) else c
+    c, p = f(x, y)
+    if with_p:
+        return replace if np.isnan(c) else c, p
+    else:
+        return replace if np.isnan(c) else c
+
+
+def p_value_stats(model_name, method_p):
+    print(f"{model_name} aa correlation p-values")
+    for method, ps in method_p.items():
+        if method in ['SHAP BGdist', 'Vanilla', 'SmoothGrad', 'VanillaIG']:
+            num_significant1 = sum(1 for p in ps if p < 0.05)
+            num_significant2 = sum(1 for p in ps if p < 0.01)
+            num_significant3 = sum(1 for p in ps if p < 0.001)
+            print(
+                f"{method}\t{num_significant1 * 100 / len(ps):.2f}%\t{num_significant2 * 100 / len(ps):.2f}%\t"
+                f"{num_significant3 * 100 / len(ps):.2f}%")

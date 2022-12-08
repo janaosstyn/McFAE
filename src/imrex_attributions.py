@@ -6,11 +6,11 @@ import pandas as pd
 import saliency.core as saliency
 import shap
 import tensorflow as tf
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, spearmanr
 
 from src.util import imrex_remove_padding, imgs_to_list_of_feature_lists, generate_path_inputs, setup_logger, \
     get_distance_matrices, normalize_2d, rmse, matrix_to_aa, list_feature_list_to_list_imgs, img_to_feature_list, \
-    get_mean_feature_values, integral_approximation
+    get_mean_feature_values, integral_approximation, correlation_nan, p_value_stats
 
 
 class ImrexAttributionsHandler:
@@ -45,6 +45,8 @@ class ImrexAttributionsHandler:
         self.random_error = None
         self.correlation = None
         self.random_correlation = None
+        self.spearmanc = None
+        self.random_spearmanc = None
 
         self.aa_attributions = None
         self.aa_norm_attributions = None
@@ -58,6 +60,10 @@ class ImrexAttributionsHandler:
         self.aa_correlation_ps = None
         self.aa_random_correlation = None
         self.aa_random_correlation_ps = None
+        self.aa_spearmanc = None
+        self.aa_spearmanc_ps = None
+        self.aa_random_spearmanc = None
+        self.aa_random_spearmanc_ps = None
 
         # Create folder to save results if it does not exists yet
         if not os.path.exists(f"{self.save_folder}/{self.name}"):
@@ -236,7 +242,7 @@ class ImrexAttributionsHandler:
                                                  'random_error')
         return self.random_error
 
-    def get_correlation(self, overwrite=False):
+    def get_correlation(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the correlation between the attributions and distances, loaded from file if already saved
         previously (and overwrite=False)
@@ -254,21 +260,36 @@ class ImrexAttributionsHandler:
         def correlation():
             attributions = self.get_attributions()
             distances = self.get_distances()
-            pearson_corr_dict = {}
+            corr_dict = {}
+            method_p = {m: [] for m in list(attributions.values())[0].keys()}
             for pdb_id, methods in attributions.items():
                 dist = distances[pdb_id]
-                pearson_corr_pdb = {}
+                corr_pdb = {}
                 for method, attribution in methods.items():
-                    pearson_corr_pdb[method] = pearsonr(dist.flatten(), attribution.flatten())[0]
-                pearson_corr_dict[pdb_id] = pearson_corr_pdb
-                self.logger.info(f'{pdb_id} done')
-            return pearson_corr_dict
+                    if correlation_method == 'pearson':
+                        corr_pdb[method], p = correlation_nan(pearsonr, dist.flatten(), attribution.flatten(),
+                                                              with_p=True)
+                        method_p[method].append(p)
+                    elif correlation_method == 'spearman':
+                        corr_pdb[method], p = correlation_nan(spearmanr, dist.flatten(), attribution.flatten(),
+                                                              with_p=True)
+                        method_p[method].append(p)
+                corr_dict[pdb_id] = corr_pdb
+            p_value_stats(self.name, method_p)
+            return corr_dict
 
-        self.correlation = self.__handle_getter(correlation, self.correlation, overwrite, f"{self.name}/correlation.p",
-                                                f'correlation')
-        return self.correlation
+        if correlation_method == 'pearson':
+            self.correlation = self.__handle_getter(correlation, self.correlation, overwrite,
+                                                    f"{self.name}/correlation.p",
+                                                    f'correlation')
+            return self.correlation
 
-    def get_random_correlation(self, overwrite=False):
+        elif correlation_method == 'spearman':
+            self.spearmanc = self.__handle_getter(correlation, self.spearmanc, overwrite, f"{self.name}/spearmanc.p",
+                                                  f'spearman correlation')
+            return self.spearmanc
+
+    def get_random_correlation(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the random correlation by taking the correlation between a random feature attribution matrix
         and the distance matrix of each PDB complex 1000 times, loaded from file if already saved previously
@@ -286,22 +307,32 @@ class ImrexAttributionsHandler:
 
         def random_correlation():
             distances = self.get_distances()
-            random_pearson_corr = []
+            random_corr = []
             for pdb_id, dist_m in distances.items():
                 # Repeat 1000 times
                 for i in range(1000):
                     # Get a random matrix with same shape as distance matrix
                     random_m = np.random.rand(*dist_m.shape)
                     # calculate correlation
-                    random_pearson_corr.append(pearsonr(dist_m.flatten(), random_m.flatten())[0])
+                    if correlation_method == 'pearson':
+                        random_corr.append(correlation_nan(pearsonr, dist_m.flatten(), random_m.flatten()))
+                    elif correlation_method == 'spearman':
+                        random_corr.append(correlation_nan(spearmanr, dist_m.flatten(), random_m.flatten()))
                 self.logger.info(f'{pdb_id} done')
             # Return mean and std
-            return np.mean(random_pearson_corr), np.std(random_pearson_corr)
+            return np.mean(random_corr), np.std(random_corr)
 
-        self.random_correlation = self.__handle_getter(random_correlation, self.random_correlation, overwrite,
-                                                       "imrex_random_correlation.p",
-                                                       'random correlation')
-        return self.random_correlation
+        if correlation_method == 'pearson':
+            self.random_correlation = self.__handle_getter(random_correlation, self.random_correlation, overwrite,
+                                                           "imrex_random_correlation.p",
+                                                           'random correlation')
+            return self.random_correlation
+
+        elif correlation_method == 'spearman':
+            self.random_spearmanc = self.__handle_getter(random_correlation, self.random_spearmanc, overwrite,
+                                                         "imrex_random_spearmanc.p",
+                                                         'random spearman correlation')
+            return self.random_spearmanc
 
     def get_aa_attributions(self, overwrite=False):
         """
@@ -578,7 +609,7 @@ class ImrexAttributionsHandler:
                                                        f"aa_random_error_ps.p", 'AA random error per sequence')
         return self.aa_random_error_ps
 
-    def get_aa_correlation(self, overwrite=False):
+    def get_aa_correlation(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the correlation between the AA distance and AA feature attributions, loaded from file if
         already saved previously (and overwrite=False)
@@ -596,20 +627,35 @@ class ImrexAttributionsHandler:
         def aa_correlation():
             aa_attributions = self.get_aa_attributions()
             aa_distances = self.get_aa_distances()
-            pearson_correlation_dict = {}
+            correlation_dict = {}
+            method_p = {m: [] for m in list(aa_attributions.values())[0].keys()}
             for pdb_id, methods in aa_attributions.items():
                 aa_dist = aa_distances[pdb_id]
-                pearson_corr_pdb = {}
+                corr_pdb = {}
                 for method, attribution in methods.items():
-                    pearson_corr_pdb[method] = pearsonr(aa_dist.flatten(), attribution.flatten())[0]
-                pearson_correlation_dict[pdb_id] = pearson_corr_pdb
-            return pearson_correlation_dict
+                    if correlation_method == 'pearson':
+                        corr_pdb[method], p = correlation_nan(pearsonr, aa_dist.flatten(), attribution.flatten(),
+                                                              with_p=True)
+                        method_p[method].append(p)
+                    elif correlation_method == 'spearman':
+                        corr_pdb[method], p = correlation_nan(spearmanr, aa_dist.flatten(), attribution.flatten(),
+                                                              with_p=True)
+                        method_p[method].append(p)
+                correlation_dict[pdb_id] = corr_pdb
+            p_value_stats(self.name, method_p)
+            return correlation_dict
 
-        self.aa_correlation = self.__handle_getter(aa_correlation, self.aa_correlation, overwrite,
-                                                   f"{self.name}/aa_correlation.p", 'AA correlation')
-        return self.aa_correlation
+        if correlation_method == 'pearson':
+            self.aa_correlation = self.__handle_getter(aa_correlation, self.aa_correlation, overwrite,
+                                                       f"{self.name}/aa_correlation.p", f'AA correlation')
+            return self.aa_correlation
 
-    def get_aa_correlation_ps(self, overwrite=False):
+        elif correlation_method == 'spearman':
+            self.aa_spearmanc = self.__handle_getter(aa_correlation, self.aa_spearmanc, overwrite,
+                                                     f"{self.name}/aa_spearmanc.p", f'AA spearman correlation')
+            return self.aa_spearmanc
+
+    def get_aa_correlation_ps(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the AA correlation per sequence (epitope and CDR3) separately, loaded from file if already
         saved previously (and overwrite=False)
@@ -628,12 +674,12 @@ class ImrexAttributionsHandler:
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
             aa_attributions = self.get_aa_attributions()
             aa_distances = self.get_aa_distances()
-            pearson_correlation_dict = {}
+            correlation_dict = {}
             for pdb_id, methods in aa_attributions.items():
                 aa_dist = aa_distances[pdb_id]
                 # Get starting index of epitope
                 seq_split = len(tcr3df.loc[pdb_id]['antigen.epitope'])
-                pearson_correlation_dict[pdb_id] = {}
+                correlation_dict[pdb_id] = {}
                 for method, attribution in methods.items():
                     # Split distance and attributions arrays in epitope and CDR3
                     ep_aa_dist = aa_dist[:seq_split]
@@ -641,16 +687,30 @@ class ImrexAttributionsHandler:
                     ep_attribution = attribution[:seq_split]
                     cdr3_attribution = attribution[seq_split:]
                     # Calculate correlation separately for epitope and CDR3
-                    pearson_correlation_dict[pdb_id][method] = (
-                        pearsonr(ep_aa_dist.flatten(), ep_attribution.flatten())[0],
-                        pearsonr(cdr3_aa_dist.flatten(), cdr3_attribution.flatten())[0])
-            return pearson_correlation_dict
+                    if correlation_method == 'pearson':
+                        correlation_dict[pdb_id][method] = (
+                            correlation_nan(pearsonr, ep_aa_dist.flatten(), ep_attribution.flatten()),
+                            correlation_nan(pearsonr, cdr3_aa_dist.flatten(), cdr3_attribution.flatten()))
+                    elif correlation_method == 'spearman':
+                        correlation_dict[pdb_id][method] = (
+                            correlation_nan(spearmanr, ep_aa_dist.flatten(), ep_attribution.flatten()),
+                            correlation_nan(spearmanr, cdr3_aa_dist.flatten(), cdr3_attribution.flatten()))
 
-        self.aa_correlation_ps = self.__handle_getter(aa_correlation_ps, self.aa_correlation_ps, overwrite,
-                                                      f"{self.name}/aa_correlation_ps.p", 'AA correlation per sequence')
-        return self.aa_correlation_ps
+            return correlation_dict
 
-    def get_aa_random_correlation(self, overwrite=False):
+        if correlation_method == 'pearson':
+            self.aa_correlation_ps = self.__handle_getter(aa_correlation_ps, self.aa_correlation_ps, overwrite,
+                                                          f"{self.name}/aa_correlation_ps.p",
+                                                          'AA correlation per sequence')
+            return self.aa_correlation_ps
+
+        elif correlation_method == 'spearman':
+            self.aa_spearmanc_ps = self.__handle_getter(aa_correlation_ps, self.aa_spearmanc_ps, overwrite,
+                                                        f"{self.name}/aa_spearmanc_ps.p",
+                                                        'AA spearman correlation per sequence')
+            return self.aa_spearmanc_ps
+
+    def get_aa_random_correlation(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the random correlation between the AA distance and AA feature attributions, loaded from file
         if already saved previously (and overwrite=False)
@@ -666,20 +726,30 @@ class ImrexAttributionsHandler:
         """
 
         def aa_random_correlation():
-            pearson_correlation = []
+            correlation = []
             aa_distances = self.get_aa_distances()
             for pdb_id, aa_dist in aa_distances.items():
                 for i in range(1000):
                     # Get random array with same length as distance array
                     random_a = np.random.rand(len(aa_dist))
-                    pearson_correlation.append(pearsonr(aa_dist.flatten(), random_a.flatten())[0])
-            return np.mean(pearson_correlation), np.std(pearson_correlation)
+                    if correlation_method == 'pearson':
+                        correlation.append(correlation_nan(pearsonr, aa_dist.flatten(), random_a.flatten()))
+                    elif correlation_method == 'spearman':
+                        correlation.append(correlation_nan(spearmanr, aa_dist.flatten(), random_a.flatten()))
 
-        self.aa_random_correlation = self.__handle_getter(aa_random_correlation, self.aa_random_correlation, overwrite,
-                                                          f"aa_random_correlation.p", 'AA random correlation')
-        return self.aa_random_correlation
+            return np.mean(correlation), np.std(correlation)
 
-    def get_aa_random_correlation_ps(self, overwrite=False):
+        if correlation_method == 'pearson':
+            self.aa_random_correlation = self.__handle_getter(aa_random_correlation, self.aa_random_correlation,
+                                                              overwrite,
+                                                              f"aa_random_correlation.p", 'AA random correlation')
+            return self.aa_random_correlation
+        elif correlation_method == 'spearman':
+            self.aa_random_spearmanc = self.__handle_getter(aa_random_correlation, self.aa_random_spearmanc, overwrite,
+                                                            f"aa_random_spearmanc.p", 'AA random spearman correlation')
+            return self.aa_random_spearmanc
+
+    def get_aa_random_correlation_ps(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the AA random correlation per sequence (epitope and CDR3), loaded from file if already saved
         previously (and overwrite=False)
@@ -695,8 +765,8 @@ class ImrexAttributionsHandler:
         """
 
         def aa_random_correlation_ps():
-            pearson_correlation_ep = []
-            pearson_correlation_cdr3 = []
+            correlation_ep = []
+            correlation_cdr3 = []
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
             aa_distances = self.get_aa_distances()
             for pdb_id, aa_dist in aa_distances.items():
@@ -707,17 +777,29 @@ class ImrexAttributionsHandler:
                     aa_dist_ep = aa_dist[:ep_len]
                     random_a_cdr3 = np.random.rand(cdr3_len)
                     aa_dist_cdr3 = aa_dist[ep_len:]
-                    pearson_correlation_ep.append(pearsonr(aa_dist_ep.flatten(), random_a_ep.flatten())[0])
-                    pearson_correlation_cdr3.append(pearsonr(aa_dist_cdr3.flatten(), random_a_cdr3.flatten())[0])
+                    if correlation_method == 'pearson':
+                        correlation_ep.append(correlation_nan(pearsonr, aa_dist_ep.flatten(), random_a_ep.flatten()))
+                        correlation_cdr3.append(
+                            correlation_nan(pearsonr, aa_dist_cdr3.flatten(), random_a_cdr3.flatten()))
+                    elif correlation_method == 'spearman':
+                        correlation_ep.append(correlation_nan(spearmanr, aa_dist_ep.flatten(), random_a_ep.flatten()))
+                        correlation_cdr3.append(
+                            correlation_nan(spearmanr, aa_dist_cdr3.flatten(), random_a_cdr3.flatten()))
                 print(f'{pdb_id} done')
-            return (np.mean(pearson_correlation_ep), np.std(pearson_correlation_ep)), (
-                np.mean(pearson_correlation_cdr3), np.std(pearson_correlation_cdr3))
+            return (np.mean(correlation_ep), np.std(correlation_ep)), (
+                np.mean(correlation_cdr3), np.std(correlation_cdr3))
 
-        self.aa_random_correlation_ps = self.__handle_getter(aa_random_correlation_ps, self.aa_random_correlation_ps,
-                                                             overwrite,
-                                                             f"aa_random_correlation_ps.p",
-                                                             'AA random correlation per sequence')
-        return self.aa_random_correlation_ps
+        if correlation_method == 'pearson':
+            self.aa_random_correlation_ps = self.__handle_getter(aa_random_correlation_ps,
+                                                                 self.aa_random_correlation_ps, overwrite,
+                                                                 f"aa_random_correlation_ps.p",
+                                                                 'AA random correlation per sequence')
+            return self.aa_random_correlation_ps
+        elif correlation_method == 'spearman':
+            self.aa_random_spearmanc_ps = self.__handle_getter(aa_random_correlation_ps, self.aa_random_spearmanc_ps,
+                                                               overwrite, f"aa_random_spearmanc_ps.p",
+                                                               'AA random spearman correlation per sequence')
+            return self.aa_random_spearmanc_ps
 
     def set_all(self, overwrite=False):
         """
@@ -742,12 +824,13 @@ class ImrexAttributionsHandler:
         self.get_aa_errors_ps(overwrite)
         self.get_aa_random_error(overwrite)
         self.get_aa_random_error_ps(overwrite)
-        self.get_correlation(overwrite)
-        self.get_random_correlation(overwrite)
-        self.get_aa_correlation(overwrite)
-        self.get_aa_correlation_ps(overwrite)
-        self.get_aa_random_correlation(overwrite)
-        self.get_aa_random_correlation_ps(overwrite)
+        for correlation_method in ['pearson', 'spearman']:
+            self.get_correlation(correlation_method, overwrite)
+            self.get_random_correlation(correlation_method, overwrite)
+            self.get_aa_correlation(correlation_method, overwrite)
+            self.get_aa_correlation_ps(correlation_method, overwrite)
+            self.get_aa_random_correlation(correlation_method, overwrite)
+            self.get_aa_random_correlation_ps(correlation_method, overwrite)
 
     def imrex_setup(self):
         """
@@ -760,7 +843,9 @@ class ImrexAttributionsHandler:
         model = tf.keras.models.load_model(self.model_path)
         input_imgs = {}
         for f in sorted(os.listdir(self.image_path)):
-            input_imgs[f[:-4]] = tf.cast(tf.convert_to_tensor(pickle.load(open(self.image_path + f, 'rb'))), tf.float32)
+            if f[-4:] == '.pkl':
+                input_imgs[f[:-4]] = tf.cast(tf.convert_to_tensor(pickle.load(open(self.image_path + f, 'rb'))),
+                                             tf.float32)
         return model, input_imgs
 
     def make_prediction(self, img):
@@ -969,7 +1054,28 @@ def main():
         image_path="data/tcr3d_images/",
         save_folder="data"
     )
+
+    imrex_scrambled_eps = ImrexAttributionsHandler(
+        name="imrex_scrambled_eps",
+        display_name="Imrex scrambled epitopes",
+        model_path="ImRex/models/models/2022-11-30_13-55-56_scrambled_eps/iteration_0/"
+                   "2022-11-30_13-55-56_scrambled_eps-epoch20.h5",
+        image_path="data/tcr3d_images/",
+        save_folder="data"
+    )
+
+    imrex_scrambled_tcrs = ImrexAttributionsHandler(
+        name="imrex_scrambled_tcrs",
+        display_name="Imrex scrambled TCRs",
+        model_path="ImRex/models/models/2022-12-01_09-52-59_scrambled_tcrs/iteration_0/"
+                   "2022-12-01_09-52-59_scrambled_tcrs-epoch20.h5",
+        image_path="data/tcr3d_images/",
+        save_folder="data"
+    )
+
     imrex_attributions.set_all()
+    imrex_scrambled_eps.set_all()
+    imrex_scrambled_tcrs.set_all()
 
 
 if __name__ == "__main__":

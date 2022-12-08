@@ -7,11 +7,11 @@ import pandas as pd
 import saliency.core as saliency
 import shap
 import torch
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, spearmanr
 
 from TITAN.scripts.flexible_model_eval import load_data, load_model
 from src.util import concatted_inputs_to_input_pair_lists, duplicate_input_pair_lists, aa_remove_padding, rmse, \
-    setup_logger, normalize_2d, correlation_nan
+    setup_logger, normalize_2d, correlation_nan, p_value_stats
 
 
 class TITANAttributionsHandler:
@@ -49,6 +49,9 @@ class TITANAttributionsHandler:
         self.correlation = None
         self.aa_correlation_ps = None
         self.random_correlation = None
+        self.spearmanc = None
+        self.aa_spearmanc_ps = None
+        self.random_spearmanc = None
 
         # Create folder to save results if it does not exists yet
         if not os.path.exists(f"{self.save_folder}/{self.name}"):
@@ -232,7 +235,7 @@ class TITANAttributionsHandler:
                                               f"{self.name}/errors_ps.p", 'errors per sequence')
         return self.errors_ps
 
-    def get_aa_correlation(self, overwrite=False):
+    def get_aa_correlation(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the correlation between the AA distance and AA feature attributions, loaded from file if
         already saved previously (and overwrite=False)
@@ -250,20 +253,32 @@ class TITANAttributionsHandler:
         def correlation():
             attributions = self.get_aa_attributions()
             distances = self.get_aa_distances()
-            pearson_corr_dict = {}
+            corr_dict = {}
+            method_p = {m: [] for m in list(attributions.values())[0].keys()}
             for pdb_id, methods in attributions.items():
                 dist = distances[pdb_id]
-                pearson_corr_pdb = {}
+                corr_pdb = {}
                 for method, attribution in methods.items():
-                    pearson_corr_pdb[method] = correlation_nan(pearsonr, dist, attribution)
-                pearson_corr_dict[pdb_id] = pearson_corr_pdb
-            return pearson_corr_dict
+                    if correlation_method == 'pearson':
+                        corr_pdb[method], p = correlation_nan(pearsonr, dist, attribution, with_p=True)
+                        method_p[method].append(p)
+                    elif correlation_method == 'spearman':
+                        corr_pdb[method], p = correlation_nan(spearmanr, dist, attribution, with_p=True)
+                        method_p[method].append(p)
+                corr_dict[pdb_id] = corr_pdb
+            p_value_stats(self.name, method_p)
+            return corr_dict
 
-        self.correlation = self.__handle_getter(correlation, self.correlation, overwrite, f"{self.name}/correlation.p",
-                                                f'correlation')
-        return self.correlation
+        if correlation_method == 'pearson':
+            self.correlation = self.__handle_getter(correlation, self.correlation, overwrite,
+                                                    f"{self.name}/correlation.p", f'correlation')
+            return self.correlation
+        elif correlation_method == 'spearman':
+            self.spearmanc = self.__handle_getter(correlation, self.spearmanc, overwrite, f"{self.name}/spearmanc.p",
+                                                  f'spearman correlation')
+            return self.spearmanc
 
-    def get_aa_correlation_ps(self, overwrite=False):
+    def get_aa_correlation_ps(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the AA correlation per sequence (epitope and CDR3) separately, loaded from file if already
         saved previously (and overwrite=False)
@@ -282,12 +297,12 @@ class TITANAttributionsHandler:
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
             aa_attributions = self.get_aa_attributions()
             aa_distances = self.get_aa_distances()
-            pearson_correlation_dict = {}
+            correlation_dict = {}
             for pdb_id, methods in aa_attributions.items():
                 aa_dist = aa_distances[pdb_id]
                 # Get starting index of epitope
                 seq_split = len(tcr3df.loc[pdb_id]['antigen.epitope'])
-                pearson_correlation_dict[pdb_id] = {}
+                correlation_dict[pdb_id] = {}
                 for method, attribution in methods.items():
                     # Split distance and attributions arrays in epitope and CDR3
                     ep_aa_dist = aa_dist[:seq_split]
@@ -295,16 +310,28 @@ class TITANAttributionsHandler:
                     ep_attribution = attribution[:seq_split]
                     cdr3_attribution = attribution[seq_split:]
                     # Calculate correlation separately for epitope and CDR3
-                    pearson_correlation_dict[pdb_id][method] = (
-                        correlation_nan(pearsonr, ep_aa_dist.flatten(), ep_attribution.flatten()),
-                        correlation_nan(pearsonr, cdr3_aa_dist.flatten(), cdr3_attribution.flatten()))
-            return pearson_correlation_dict
+                    if correlation_method == 'pearson':
+                        correlation_dict[pdb_id][method] = (
+                            correlation_nan(pearsonr, ep_aa_dist.flatten(), ep_attribution.flatten()),
+                            correlation_nan(pearsonr, cdr3_aa_dist.flatten(), cdr3_attribution.flatten()))
+                    elif correlation_method == 'spearman':
+                        correlation_dict[pdb_id][method] = (
+                            correlation_nan(spearmanr, ep_aa_dist.flatten(), ep_attribution.flatten()),
+                            correlation_nan(spearmanr, cdr3_aa_dist.flatten(), cdr3_attribution.flatten()))
+            return correlation_dict
 
-        self.aa_correlation_ps = self.__handle_getter(aa_correlation_ps, self.aa_correlation_ps, overwrite,
-                                                      f"{self.name}/aa_correlation_ps.p", 'AA correlation per sequence')
-        return self.aa_correlation_ps
+        if correlation_method == 'pearson':
+            self.aa_correlation_ps = self.__handle_getter(aa_correlation_ps, self.aa_correlation_ps, overwrite,
+                                                          f"{self.name}/aa_correlation_ps.p",
+                                                          'AA correlation per sequence')
+            return self.aa_correlation_ps
+        elif correlation_method == 'spearman':
+            self.aa_spearmanc_ps = self.__handle_getter(aa_correlation_ps, self.aa_spearmanc_ps, overwrite,
+                                                        f"{self.name}/aa_spearmanc_ps.p",
+                                                        'AA spearman correlation per sequence')
+            return self.aa_spearmanc_ps
 
-    def get_aa_random_correlation(self, overwrite=False):
+    def get_aa_random_correlation(self, correlation_method='pearson', overwrite=False):
         """
         Calculate and save the random correlation between the AA distance and AA feature attributions, loaded from file
         if already saved previously (and overwrite=False)
@@ -320,23 +347,16 @@ class TITANAttributionsHandler:
         """
 
         def random_correlation():
-            distances = self.get_aa_distances()
-            random_pearson_corr = []
-            for pdb_id, dist_m in distances.items():
-                # Repeat 1000 times
-                for i in range(1000):
-                    # Get a random matrix with same shape as distance matrix
-                    random_m = np.random.rand(*dist_m.shape)
-                    # calculate correlation
-                    random_pearson_corr.append(correlation_nan(pearsonr, dist_m, random_m))
-                self.logger.info(f'{pdb_id} done')
-            # Return mean and std
-            return np.mean(random_pearson_corr), np.std(random_pearson_corr)
+            raise NotImplementedError('Random correlation should be calculated from ImRex')
 
-        self.random_correlation = self.__handle_getter(random_correlation, self.random_correlation, overwrite,
-                                                       "titan_random_correlation.p",
-                                                       'random correlation')
-        return self.random_correlation
+        if correlation_method == 'pearson':
+            self.random_correlation = self.__handle_getter(random_correlation, self.random_correlation, overwrite,
+                                                           "aa_random_correlation.p", 'random correlation')
+            return self.random_correlation
+        elif correlation_method == 'spearman':
+            self.random_spearmanc = self.__handle_getter(random_correlation, self.random_spearmanc, overwrite,
+                                                         "aa_random_spearmanc.p", 'random spearman correlation')
+            return self.random_spearmanc
 
     def set_all(self, overwrite=False):
         """
@@ -352,9 +372,10 @@ class TITANAttributionsHandler:
         self.get_aa_distances(overwrite)
         self.get_aa_errors(overwrite)
         self.get_aa_errors_ps(overwrite)
-        self.get_aa_correlation(overwrite)
-        self.get_aa_correlation_ps()
-        self.get_aa_random_correlation(overwrite)
+        for cm in ['pearson', 'spearman']:
+            self.get_aa_correlation(cm, overwrite)
+            self.get_aa_correlation_ps(cm, overwrite)
+            self.get_aa_random_correlation(cm, overwrite)
 
     def get_shap_attributions(self, inputs):
         """
@@ -427,6 +448,7 @@ class TITANAttributionsHandler:
         -------
         Feature attribution array for the input sample extracted with the given method
         """
+
         def call_model_function(batch_concat_input, call_model_args=None, expected_keys=None):
             # SET EMBEDDING TYPE TO PREDEFINED, the regular forward function won't use them anymore!
             ligand_embedding_type_backup = self.model.ligand_embedding_type
@@ -566,6 +588,7 @@ def main():
 
     titan_on_imrex_data_handler.set_all()
     titan_strictsplit_handler.set_all()
+
 
 if __name__ == "__main__":
     main()
