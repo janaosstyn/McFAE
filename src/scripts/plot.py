@@ -41,6 +41,8 @@ def plot_model_comparison(metrics, names, savename=None):
 def plot_model_performance():
     imrex = pd.read_csv(
         'ImRex/models/models/2022-01-06_11-03-43_nocdr3dup_default_epgrouped5cv/full_metrics.csv')
+    imrex_scrambled_eps = pd.read_csv('ImRex/models/models/2022-11-30_13-55-56_scrambled_eps/full_metrics.csv')
+    imrex_scrambled_tcrs = pd.read_csv('ImRex/models/models/2022-12-01_09-52-59_scrambled_tcrs/full_metrics.csv')
     titan_on_imrex_data = pd.read_csv('TITAN/models/nocdr3dup_epgrouped5cv_paperparams_smallpad/full_metrics.csv')
     titan_scrambled_tcs = pd.read_csv('TITAN/models/titanData_strictsplit_scrambledtcrs/full_metrics.csv')
     titan = pd.read_csv('TITAN/models/titanData_strictsplit_nocdr3/full_metrics.csv')
@@ -52,19 +54,29 @@ def plot_model_performance():
     plot_model_comparison(
         [imrex, titan, titan_on_imrex_data, titan_scrambled_tcs],
         ['ImRex', 'TITAN', 'TITAN on ImRex data', 'TITAN scrambled TCRs'])
+    plot_model_comparison(
+        [imrex, imrex_scrambled_eps, titan, titan_on_imrex_data, titan_scrambled_tcs],
+        ['ImRex', 'ImRex scrambled epitopes', 'TITAN', 'TITAN on ImRex data', 'TITAN scrambled TCRs'],
+        'scrambled epitopes')
+
+    plot_model_comparison(
+        [imrex, imrex_scrambled_tcrs, titan, titan_on_imrex_data, titan_scrambled_tcs],
+        ['ImRex', 'ImRex scrambled TCRs', 'TITAN', 'TITAN on ImRex data', 'TITAN scrambled TCRs'],
+        'scrambled tcrs')
 
 
 def plot_method_correlation_comparison(attribution_handler: [ImrexAttributionsHandler, TITANAttributionsHandler],
-                                       methods_subset=None):
+                                       methods_subset=None, correlation_method='pearson'):
     if isinstance(attribution_handler, ImrexAttributionsHandler):
         attribution_types = ['aa', 'pair-wise']
-        correlations = [attribution_handler.get_aa_correlation(), attribution_handler.get_correlation()]
-        random_correlations = [attribution_handler.get_aa_random_correlation(),
-                               attribution_handler.get_random_correlation()]
+        correlations = [attribution_handler.get_aa_correlation(correlation_method),
+                        attribution_handler.get_correlation(correlation_method)]
+        random_correlations = [attribution_handler.get_aa_random_correlation(correlation_method),
+                               attribution_handler.get_random_correlation(correlation_method)]
     elif isinstance(attribution_handler, TITANAttributionsHandler):
         attribution_types = ['aa']
-        correlations = [attribution_handler.get_aa_correlation()]
-        random_correlations = [attribution_handler.get_aa_random_correlation()]
+        correlations = [attribution_handler.get_aa_correlation(correlation_method)]
+        random_correlations = [attribution_handler.get_aa_random_correlation(correlation_method)]
     else:
         raise TypeError(f"attribution_handler of wrong type, got {type(attribution_handler)} but expected "
                         f"{ImrexAttributionsHandler} or {TITANAttributionsHandler}")
@@ -104,19 +116,19 @@ def plot_method_correlation_comparison(attribution_handler: [ImrexAttributionsHa
         sns.boxplot(data=correlation, showfliers=False)
         sns.stripplot(data=correlation, color="0.25", s=3)
         plt.xlabel("Feature attribution extraction method")
-        plt.ylabel(f"Pearson correlation")
-        print(f"Plotted Pearson correlation for {attribution_handler.name} {attribution_type}")
+        plt.ylabel(f"{correlation_method.capitalize()} correlation")
+        print(f"Plotted {correlation_method} correlation for {attribution_handler.name} {attribution_type}")
         x = [-0.5, len(methods) - 0.5]
         y = [random_results[0]] * 2
         y_error_min = [random_results[0] - random_results[1]] * 2
         y_error_max = [random_results[0] + random_results[1]] * 2
-        plt.plot(x, y, '--', label=f"Random Pearson correlation "
+        plt.plot(x, y, '--', label=f"Random {correlation_method.capitalize()} correlation "
                                    f"({random_results[0]:.3f} +- {random_results[1]:.3f})")
         plt.fill_between(x, y_error_min, y_error_max, alpha=0.3)
         plt.grid(axis='y')
-        plt.legend()
+        plt.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower right")
         plt.tight_layout()
-        plt.savefig(f'output/plots/{attribution_handler.name}_{attribution_type}_pearson'
+        plt.savefig(f'output/plots/{attribution_handler.name}_{attribution_type}_{correlation_method}'
                     f'_correlation_comparison{"_subset" if methods_subset is not None else ""}.png', dpi=300)
         plt.clf()
 
@@ -171,7 +183,8 @@ def plot_method_correlation_comparison_all_models_subset(model_handlers):
         ax.fill_between(x, y_error_min, y_error_max, alpha=0.3)
         ax.grid(axis='y')
         # ax.set_title(name)
-        ax.legend()
+        ax.legend(bbox_to_anchor=(0, 1.02, 1, -0.1), loc='lower right', borderaxespad=0)
+        # ax.legend()
 
     axs[0].set_ylabel('Pearson correlation')
     axs[1].set_xlabel('Feature attribution extraction method')
@@ -260,11 +273,11 @@ def plot_aa_model_comparison(model_handlers, random_index, method, save_post, fi
 
     axs[0].fill_between(x, re_range[0], re_range[1], alpha=0.3)
     if save_post == "all":
-        axs[1].legend()
-        axs[0].legend()
+        axs[1].legend(bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
+        axs[0].legend(bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
     else:
-        axs[1].legend(fontsize=9)
-        axs[0].legend(fontsize=8)
+        axs[1].legend(fontsize=9, bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
+        axs[0].legend(fontsize=8, bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
     axs[0].set_xlabel('Model')
     axs[1].set_xlabel('Model + sequence')
 
@@ -443,13 +456,13 @@ def plot_positional_average(model_handlers, method, save_post, dist_i=0):
         names.append(name)
     heatmap.append(np.concatenate((np.nanmean(pos_distances_ep, 0), [-1], np.nanmean(pos_distances_cdr3, 0))))
     names.append('Residue proximity')
-    plt.gcf().set_size_inches(10 / 1.3, 3 / 1.3)
+    plt.gcf().set_size_inches(10 / 1.1, 3 / 1.1)
     heatmap = np.array(heatmap)
     heatmap = np.ma.masked_where(heatmap == -1, heatmap)
     grid = plt.imshow(heatmap, cmap='Greys')
     plt.xticks(list(range(max_ep)) + list(range(max_ep + 1, max_ep + 1 + max_cdr3)),
-               ['$\mathregular{e_{' + str(i) + '}}$' for i in range(max_ep)] +
-               ['$\mathregular{c_{' + str(i) + '}}$' for i in range(max_cdr3)])
+               ['$\mathregular{e_{' + str(i + 1) + '}}$' for i in range(max_ep)] +
+               ['$\mathregular{c_{' + str(i + 1) + '}}$' for i in range(max_cdr3)])
     plt.yticks(list(range(len(heatmap))), names)
     plt.colorbar(grid, orientation='horizontal', pad=0.2, label=f"{method} feature attribution")
     plt.clim(0, 1)
@@ -466,6 +479,24 @@ def main():
                    "2022-01-06_11-03-43_nocdr3dup_default_epgrouped5cv-epoch20.h5",
         image_path="data/tcr3d_images/",
         save_folder="data",
+    )
+
+    imrex_scrambled_eps = ImrexAttributionsHandler(
+        name="imrex_scrambled_eps",
+        display_name="ImRex scrambled eps",
+        model_path="ImRex/models/models/2022-11-30_13-55-56_scrambled_eps/iteration_0/"
+                   "2022-11-30_13-55-56_scrambled_eps-epoch20.h5",
+        image_path="data/tcr3d_images/",
+        save_folder="data"
+    )
+
+    imrex_scrambled_tcrs = ImrexAttributionsHandler(
+        name="imrex_scrambled_tcrs",
+        display_name="ImRex scrambled TCRs",
+        model_path="ImRex/models/models/2022-12-01_09-52-59_scrambled_tcrs/iteration_0/"
+                   "2022-12-01_09-52-59_scrambled_tcrs-epoch20.h5",
+        image_path="data/tcr3d_images/",
+        save_folder="data"
     )
 
     titan_on_imrex_data_handler = TITANAttributionsHandler(
@@ -519,13 +550,18 @@ def main():
     plot_TITAN_methods_sample_details(titan_strictsplit_handler, imrex_attributions_handler,
                                       ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'])
 
-    # Fig S5: Average feature attribution for the 3 models
-    plot_positional_average([imrex_attributions_handler, titan_strictsplit_handler, titan_on_imrex_data_handler],
-                            'SmoothGrad', 'all')
+    # Fig S5: Average feature attribution for all the models
+    plot_positional_average(
+        [imrex_attributions_handler, imrex_scrambled_eps, imrex_scrambled_tcrs, titan_strictsplit_handler,
+         titan_on_imrex_data_handler], 'SmoothGrad', 'all')
 
     # Fig S6: Like Fig 5 but on all models
     plot_aa_model_comparison([imrex_attributions_handler, titan_strictsplit_handler, titan_on_imrex_data_handler], 0,
                              'SmoothGrad', 'all', (12.8 / 1.15, 4.8 / 1.15))
+
+    # Fig S7: Spearman correlation for all extraction methods
+    plot_method_correlation_comparison(imrex_attributions_handler, correlation_method='spearman')
+    plot_method_correlation_comparison(titan_strictsplit_handler, correlation_method='spearman')
 
 
 if __name__ == "__main__":
