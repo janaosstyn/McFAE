@@ -241,17 +241,17 @@ def filter_vdjdb(  # noqa: C901
     # parse the dict/json-like methods, meta and cdr3fix columns
     df = (
         df.join(
-            pd.json_normalize(
+            pd.io.json.json_normalize(
                 df["method"].apply(lambda x: json.loads(r"{}".format(x)))
             ).add_prefix("method.")
         )
         .join(
-            pd.json_normalize(
+            pd.io.json.json_normalize(
                 df["meta"].apply(lambda x: json.loads(r"{}".format(x)))
             ).add_prefix("meta.")
         )
         .join(
-            pd.json_normalize(
+            pd.io.json.json_normalize(
                 df["cdr3fix"].apply(lambda x: json.loads(r"{}".format(x)))
             ).add_prefix("cdr3fix.")
         )
@@ -319,7 +319,7 @@ def filter_vdjdb(  # noqa: C901
     # Remove specified references
     if specific_removal_references:
         df = df.loc[
-            ~(df["reference.id"].str.contains("|".join(specific_removal_references)))
+            ~df["reference.id"].str.contains("|".join(specific_removal_references), na=False)
         ]
         # df["reference.id"].isin([specific_removal_references]) could be used if exact matching is wanted instead of containing the string
         logger.info(
