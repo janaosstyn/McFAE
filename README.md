@@ -2,7 +2,7 @@
 
 ## Setup environment
 
-All required packages can be installed in a conda environment. `conda` and `git` need to be installed on your machine.
+All required packages can be installed in a conda environment. `conda` needs to be installed on your machine.
 Installation can be done with
 
     conda env create -f environment.yml

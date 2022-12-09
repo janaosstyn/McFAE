@@ -32,3 +32,10 @@ __pycache__/
 ImRex/src.egg-info/
 
 McFAE.egg-info/
+
+ImRex/models/models/2022-10-05_13-31-59_2022-03-30-data/
+
+ImRex/data/interim/vdjdb-2022-03-30/
+!ImRex/data/interim/vdjdb-2022-03-30/vdjdb.txt
+
+src/scripts/retrain_ImRex/retrain_model_2022.sh
