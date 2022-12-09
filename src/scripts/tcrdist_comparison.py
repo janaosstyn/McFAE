@@ -20,7 +20,7 @@ def tcrdist_comparison():
     centroids = {'ELAGIGILTV': 'CAWSETGLGTGELFF', 'GILGFVFTL': 'CASSIRSSYEQYF'}
     for i in range(2):
         df_ep = df[df['antigen.epitope'] == most_ep.index[i]]
-        # tcrdist_comparison_ep(df_ep)
+        tcrdist_comparison_ep(df_ep)
         imrex_per_ep_attributions(most_ep.index[i], df_ep, centroids[most_ep.index[i]])
 
 
@@ -71,9 +71,12 @@ def tcrdist_comparison_ep(df):
     # exit()
 
     from tcrsampler.sampler import TCRsampler
+    import tcrsampler
+    import os
 
     t = TCRsampler()
-    # t.download_background_file("ruggiero_human_sampler.zip")
+    if not os.path.isfile(os.path.join(os.path.dirname(tcrsampler.__file__), "db", "ruggiero_human_sampler.zip")):
+        t.download_background_file("ruggiero_human_sampler.zip")
     tcrsampler_beta = TCRsampler(default_background='ruggiero_human_beta_t.tsv.sampler.tsv')
 
     from tcrdist.adpt_funcs import get_centroid_seq

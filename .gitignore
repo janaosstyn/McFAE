@@ -39,3 +39,7 @@ ImRex/data/interim/vdjdb-2022-03-30/
 !ImRex/data/interim/vdjdb-2022-03-30/vdjdb.txt
 
 src/scripts/retrain_ImRex/retrain_model_2022.sh
+
+*.html
+
+output/logos/
