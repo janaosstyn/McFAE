@@ -162,7 +162,7 @@ def imrex_remove_padding(m, width, height):
     ----------
     m           Matrix from which to remove padding
     width       Final width to reach
-    height      Final height to reac
+    height      Final height to reach
 
     Returns
     -------
@@ -181,6 +181,25 @@ def imrex_remove_padding(m, width, height):
     m = m[:, hor_before:m.shape[1] - hor_after]
 
     return m
+
+
+def imrex_remove_padding_from_3d_matrix(m_list, width, height):
+    """
+    Remove padding added by ImRex
+
+    Parameters
+    ----------
+    m_list      3D matrix from which to remove padding on the last 2 dimensions
+    width       Final width to reach
+    height      Final height to reach
+
+    Returns
+    -------
+    List of 2D matrices from which padding is removed
+    """
+    result_list = [imrex_remove_padding(m=m, width=width, height=height) for m in m_list]
+
+    return result_list
 
 
 def aa_remove_padding(att, in_data):
@@ -279,6 +298,28 @@ def rmse(dm, att):
     """
     dm, att = error_setup(dm, att)
     return np.sqrt(np.mean(np.square(dm - att)))
+
+
+def rmse_for_list(dm_list, att_list):
+    """
+    Calculate the root-mean-square error (RMSE) between the distance matrix and attribution matrix for a list of
+    distance matrices and a list of attribution matrices
+    The distance matrix is first inverted and normalized, the attribution matrix is first normalized.
+
+    Parameters
+    ----------
+    dm_list     list of distance matrices
+    att_list    list of attribution matrices
+
+    Returns
+    -------
+    RMSE
+    """
+    result_list = []
+    for i, att in enumerate(att_list):
+        dm_temp, att = error_setup(dm_list[i], att)
+        result_list.append(np.sqrt(np.mean(np.square(dm_temp - att))))
+    return result_list
 
 
 def matrix_to_aa(m, method):

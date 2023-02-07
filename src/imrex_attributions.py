@@ -6,11 +6,11 @@ import pandas as pd
 import saliency.core as saliency
 import shap
 import tensorflow as tf
-from scipy.stats import pearsonr, spearmanr
+from scipy.stats import pearsonr
 
 from src.util import imrex_remove_padding, imgs_to_list_of_feature_lists, generate_path_inputs, setup_logger, \
     get_distance_matrices, normalize_2d, rmse, matrix_to_aa, list_feature_list_to_list_imgs, img_to_feature_list, \
-    get_mean_feature_values, integral_approximation, correlation_nan, p_value_stats
+    get_mean_feature_values, integral_approximation
 
 
 class ImrexAttributionsHandler:
@@ -45,8 +45,6 @@ class ImrexAttributionsHandler:
         self.random_error = None
         self.correlation = None
         self.random_correlation = None
-        self.spearmanc = None
-        self.random_spearmanc = None
 
         self.aa_attributions = None
         self.aa_norm_attributions = None
@@ -60,16 +58,36 @@ class ImrexAttributionsHandler:
         self.aa_correlation_ps = None
         self.aa_random_correlation = None
         self.aa_random_correlation_ps = None
-        self.aa_spearmanc = None
-        self.aa_spearmanc_ps = None
-        self.aa_random_spearmanc = None
-        self.aa_random_spearmanc_ps = None
 
         # Create folder to save results if it does not exists yet
         if not os.path.exists(f"{self.save_folder}/{self.name}"):
             os.makedirs(f"{self.save_folder}/{self.name}")
 
         self.logger = setup_logger(self.name)
+
+    @staticmethod
+    def dict_key(pdb_id, channel):
+        return f'{pdb_id}_{channel}'
+
+    @staticmethod
+    def split_feature_attribution_matrix(matrix, w, h):
+        if len(matrix.shape) == 2 and matrix.shape[-1] == 4:
+            return [imrex_remove_padding(matrix[:, channel], w, h) for channel in range(4)]
+        elif len(matrix.shape) == 3 and matrix.shape[-1] == 4:
+            return [imrex_remove_padding(matrix[:, :, channel], w, h) for channel in range(4)]
+        elif len(matrix.shape) == 4 and matrix.shape[-1] == 4:
+            return [imrex_remove_padding(matrix[:, :, :, channel], w, h) for channel in range(4)]
+        else:
+            return [imrex_remove_padding(matrix, w, h)]
+
+    @staticmethod
+    def image_channel(image, channel):
+        if channel is not None:
+            image = image.numpy()
+            for i in range(4):
+                image[:, :, i] = image[:, :, channel]
+            image = tf.convert_to_tensor(image)
+        return image
 
     def get_sequences(self):
         """
@@ -84,13 +102,14 @@ class ImrexAttributionsHandler:
             sequences[pdb_id] = (ep, cdr3)
         return sequences
 
-    def get_attributions(self, overwrite=False):
+    def get_attributions(self, overwrite=False, split_channels=False):
         """
         Calculate and save all feature attributions, loaded from file if already saved previously (and overwrite=False)
 
         Parameters
         ----------
-        overwrite   If True, attributions will be re-calculated and overwrite the old saved result
+        overwrite       If True, attributions will be re-calculated and overwrite the old saved result
+        split_channels  If True, attribution calculation will be performed for each input channel separately
 
         Returns
         -------
@@ -101,34 +120,97 @@ class ImrexAttributionsHandler:
             # Get data and ImRex model
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv")
             self.model, self.input_images = self.imrex_setup()
+            print(self.model)
 
             # Calculate SHAP feature attributions with 'mean' and 'dist' background methods
-            shaps_mean = self.get_shap_attributions('mean')
-            shaps_dist = self.get_shap_attributions('dist')
+            if split_channels:
+                if os.path.isfile('temp_shaps_mean_split.txt') and os.path.isfile('temp_shaps_dist_split.txt'):
+                    dim = tuple(
+                        [len(self.input_images)] + list(self.input_images[list(self.input_images.keys())[0]].shape))
+                    shaps_mean_calc = np.loadtxt('temp_shaps_mean_split.txt').reshape(dim)
+                    shaps_dist_calc = np.loadtxt('temp_shaps_dist_split.txt').reshape(dim)
+                else:
+                    shaps_mean_calc = self.get_shap_attributions(background='mean', split_channels=split_channels)
+                    np.savetxt('temp_shaps_mean_split.txt', shaps_mean_calc.reshape(shaps_mean_calc.shape[0], -1))
+                    shaps_dist_calc = self.get_shap_attributions(background='dist', split_channels=split_channels)
+                    np.savetxt('temp_shaps_dist_split.txt', shaps_dist_calc.reshape(shaps_dist_calc.shape[0], -1))
+            else:
+                if os.path.isfile('temp_shaps_mean_combined.txt') and os.path.isfile('temp_shaps_dist_combined.txt'):
+                    dim = tuple(
+                        [len(self.input_images)] + list(self.input_images[list(self.input_images.keys())[0]].shape)[:-1])
+                    shaps_mean_calc = np.loadtxt('temp_shaps_mean_combined.txt').reshape(dim)
+                    shaps_dist_calc = np.loadtxt('temp_shaps_dist_combined.txt').reshape(dim)
+                else:
+                    shaps_mean_calc = self.get_shap_attributions(background='mean', split_channels=split_channels)
+                    np.savetxt('temp_shaps_mean_combined.txt', shaps_mean_calc.reshape(shaps_mean_calc.shape[0], -1))
+                    shaps_dist_calc = self.get_shap_attributions(background='dist', split_channels=split_channels)
+                    np.savetxt('temp_shaps_dist_combined.txt', shaps_dist_calc.reshape(shaps_dist_calc.shape[0], -1))
 
-            attributions = {}
-            for pdb_id, cdr3, ep, shap_mean, shap_dist in zip(tcr3df['PDB_ID'], tcr3df['cdr3'],
-                                                              tcr3df['antigen.epitope'], shaps_mean, shaps_dist):
+            attribution_dict = {}
 
-                # Calculate IG feature attribution
-                manual_ig = self.get_ig_attribution(self.input_images[pdb_id])
+            property_zip = list(zip(
+                tcr3df['PDB_ID'],
+                tcr3df['cdr3'],
+                tcr3df['antigen.epitope'],
+                shaps_mean_calc,
+                shaps_dist_calc
+            ))
 
-                # Remove padding from SHAP and IG feature attributions and save in dict
-                img_attributions = {'SHAP mean': imrex_remove_padding(shap_mean, len(cdr3), len(ep)),
-                                    'SHAP BGdist': imrex_remove_padding(shap_dist, len(cdr3), len(ep)),
-                                    'IG': imrex_remove_padding(manual_ig, len(cdr3), len(ep))}
+            for pdb_id, cdr3, ep, shap_mean, shap_dist in property_zip:
+                pdb_dict = {
+                    'SHAP mean': shap_mean,
+                    'SHAP BGdist': shap_dist,
+                    'IG': self.get_ig_attribution(input_img=self.input_images[pdb_id], split_channels=split_channels)
+                }
 
                 saliency_methods = ['Vanilla', 'SmoothGrad', 'VanillaIG', 'SmoothGradIG', 'GuidedIG', 'XRAI',
                                     'BlurIG', 'SmoothGradBlurIG']
 
                 # Add attributions of all saliency methods to dict
                 for method in saliency_methods:
-                    saliency_attribution = self.get_saliency_attribution(self.input_images[pdb_id], method)
-                    img_attributions[method] = imrex_remove_padding(saliency_attribution, len(cdr3), len(ep))
+                    pdb_dict[method] = self.get_saliency_attribution(
+                        im=self.input_images[pdb_id], method=method, split_channels=split_channels)
+                    # if split_channels:
+                    #     pdb_dict[method] = np.moveaxis(pdb_dict[method], 0, 2)
+                    # else:
+                    #     pdb_dict[method] = pdb_dict[method].reshape(pdb_dict[method].shape[1:])
 
-                attributions[pdb_id] = img_attributions
+                # Split channels if applicable + remove padding
+                if split_channels:
+                    for method in pdb_dict:
+                        pdb_dict[method] = self.split_feature_attribution_matrix(
+                            matrix=pdb_dict[method],
+                            w=len(cdr3),
+                            h=len(ep)
+                        )
+
+                    for method in pdb_dict:
+                        for channel in range(4):
+                            if self.dict_key(pdb_id=pdb_id, channel=channel) not in attribution_dict:
+                                attribution_dict[self.dict_key(pdb_id=pdb_id, channel=channel)] = {}
+
+                            if method == 'XRAI':
+                                attribution_dict[self.dict_key(pdb_id=pdb_id, channel=channel)][method] = \
+                                    pdb_dict[method][0]
+                            else:
+                                attribution_dict[self.dict_key(pdb_id=pdb_id, channel=channel)][method] = \
+                                    pdb_dict[method][channel]
+                else:
+                    for method in pdb_dict:
+                        pdb_dict[method] = imrex_remove_padding(pdb_dict[method], len(cdr3), len(ep))
+                    attribution_dict[pdb_id] = pdb_dict
+
                 self.logger.info(f'{pdb_id} done')
-            return attributions
+
+            if split_channels:
+                attribution_dict_combined = self.get_attributions(overwrite=overwrite, split_channels=False)
+                attribution_dict_combined = {
+                    f'{k}_combined': v
+                    for k, v in attribution_dict_combined.items()
+                }
+                attribution_dict.update(attribution_dict_combined)
+
+            return attribution_dict
 
         self.attributions = self.__handle_getter(attributions, self.attributions, overwrite,
                                                  f"{self.name}/attributions.p", 'attributions')
@@ -197,7 +279,7 @@ class ImrexAttributionsHandler:
             distances = self.get_distances()
             error_dict = {}
             for pdb_id, methods in attributions.items():
-                dist = distances[pdb_id]
+                dist = distances[pdb_id.split('_')[0]]
                 error_pdb = {}
                 for method, attribution in methods.items():
                     error_pdb[method] = rmse(dist, attribution)
@@ -242,7 +324,7 @@ class ImrexAttributionsHandler:
                                                  'random_error')
         return self.random_error
 
-    def get_correlation(self, correlation_method='pearson', overwrite=False):
+    def get_correlation(self, overwrite=False):
         """
         Calculate and save the correlation between the attributions and distances, loaded from file if already saved
         previously (and overwrite=False)
@@ -260,36 +342,21 @@ class ImrexAttributionsHandler:
         def correlation():
             attributions = self.get_attributions()
             distances = self.get_distances()
-            corr_dict = {}
-            method_p = {m: [] for m in list(attributions.values())[0].keys()}
+            pearson_corr_dict = {}
             for pdb_id, methods in attributions.items():
-                dist = distances[pdb_id]
-                corr_pdb = {}
+                dist = distances[pdb_id.split('_')[0]]
+                pearson_corr_pdb = {}
                 for method, attribution in methods.items():
-                    if correlation_method == 'pearson':
-                        corr_pdb[method], p = correlation_nan(pearsonr, dist.flatten(), attribution.flatten(),
-                                                              with_p=True)
-                        method_p[method].append(p)
-                    elif correlation_method == 'spearman':
-                        corr_pdb[method], p = correlation_nan(spearmanr, dist.flatten(), attribution.flatten(),
-                                                              with_p=True)
-                        method_p[method].append(p)
-                corr_dict[pdb_id] = corr_pdb
-            p_value_stats(self.name, method_p)
-            return corr_dict
+                    pearson_corr_pdb[method] = pearsonr(dist.flatten(), attribution.flatten())[0]
+                pearson_corr_dict[pdb_id] = pearson_corr_pdb
+                self.logger.info(f'{pdb_id} done')
+            return pearson_corr_dict
 
-        if correlation_method == 'pearson':
-            self.correlation = self.__handle_getter(correlation, self.correlation, overwrite,
-                                                    f"{self.name}/correlation.p",
-                                                    f'correlation')
-            return self.correlation
+        self.correlation = self.__handle_getter(correlation, self.correlation, overwrite, f"{self.name}/correlation.p",
+                                                f'correlation')
+        return self.correlation
 
-        elif correlation_method == 'spearman':
-            self.spearmanc = self.__handle_getter(correlation, self.spearmanc, overwrite, f"{self.name}/spearmanc.p",
-                                                  f'spearman correlation')
-            return self.spearmanc
-
-    def get_random_correlation(self, correlation_method='pearson', overwrite=False):
+    def get_random_correlation(self, overwrite=False):
         """
         Calculate and save the random correlation by taking the correlation between a random feature attribution matrix
         and the distance matrix of each PDB complex 1000 times, loaded from file if already saved previously
@@ -307,32 +374,22 @@ class ImrexAttributionsHandler:
 
         def random_correlation():
             distances = self.get_distances()
-            random_corr = []
+            random_pearson_corr = []
             for pdb_id, dist_m in distances.items():
                 # Repeat 1000 times
                 for i in range(1000):
                     # Get a random matrix with same shape as distance matrix
                     random_m = np.random.rand(*dist_m.shape)
                     # calculate correlation
-                    if correlation_method == 'pearson':
-                        random_corr.append(correlation_nan(pearsonr, dist_m.flatten(), random_m.flatten()))
-                    elif correlation_method == 'spearman':
-                        random_corr.append(correlation_nan(spearmanr, dist_m.flatten(), random_m.flatten()))
+                    random_pearson_corr.append(pearsonr(dist_m.flatten(), random_m.flatten())[0])
                 self.logger.info(f'{pdb_id} done')
             # Return mean and std
-            return np.mean(random_corr), np.std(random_corr)
+            return np.mean(random_pearson_corr), np.std(random_pearson_corr)
 
-        if correlation_method == 'pearson':
-            self.random_correlation = self.__handle_getter(random_correlation, self.random_correlation, overwrite,
-                                                           "imrex_random_correlation.p",
-                                                           'random correlation')
-            return self.random_correlation
-
-        elif correlation_method == 'spearman':
-            self.random_spearmanc = self.__handle_getter(random_correlation, self.random_spearmanc, overwrite,
-                                                         "imrex_random_spearmanc.p",
-                                                         'random spearman correlation')
-            return self.random_spearmanc
+        self.random_correlation = self.__handle_getter(random_correlation, self.random_correlation, overwrite,
+                                                       "imrex_random_correlation.p",
+                                                       'random correlation')
+        return self.random_correlation
 
     def get_aa_attributions(self, overwrite=False):
         """
@@ -492,7 +549,7 @@ class ImrexAttributionsHandler:
             aa_distances = self.get_aa_distances()
             error_dict = {}
             for pdb_id, methods in aa_attributions.items():
-                aa_dist = aa_distances[pdb_id]
+                aa_dist = aa_distances[pdb_id.split('_')[0]]
                 error_pdb = {}
                 for method, attribution in methods.items():
                     error_pdb[method] = rmse(aa_dist, attribution)
@@ -524,9 +581,9 @@ class ImrexAttributionsHandler:
             aa_distances = self.get_aa_distances()
             error_ps_dict = {}
             for pdb_id, methods in aa_attributions.items():
-                aa_dist = aa_distances[pdb_id]
+                aa_dist = aa_distances[pdb_id.split('_')[0]]
                 # Get starting index of epitope
-                seq_split = len(tcr3df.loc[pdb_id]['antigen.epitope'])
+                seq_split = len(tcr3df.loc[pdb_id.split('_')[0]]['antigen.epitope'])
                 error_ps_dict[pdb_id] = {}
                 for method, attribution in methods.items():
                     # Split distance and attributions arrays in epitope and CDR3
@@ -609,7 +666,7 @@ class ImrexAttributionsHandler:
                                                        f"aa_random_error_ps.p", 'AA random error per sequence')
         return self.aa_random_error_ps
 
-    def get_aa_correlation(self, correlation_method='pearson', overwrite=False):
+    def get_aa_correlation(self, overwrite=False):
         """
         Calculate and save the correlation between the AA distance and AA feature attributions, loaded from file if
         already saved previously (and overwrite=False)
@@ -627,35 +684,20 @@ class ImrexAttributionsHandler:
         def aa_correlation():
             aa_attributions = self.get_aa_attributions()
             aa_distances = self.get_aa_distances()
-            correlation_dict = {}
-            method_p = {m: [] for m in list(aa_attributions.values())[0].keys()}
+            pearson_correlation_dict = {}
             for pdb_id, methods in aa_attributions.items():
-                aa_dist = aa_distances[pdb_id]
-                corr_pdb = {}
+                aa_dist = aa_distances[pdb_id.split('_')[0]]
+                pearson_corr_pdb = {}
                 for method, attribution in methods.items():
-                    if correlation_method == 'pearson':
-                        corr_pdb[method], p = correlation_nan(pearsonr, aa_dist.flatten(), attribution.flatten(),
-                                                              with_p=True)
-                        method_p[method].append(p)
-                    elif correlation_method == 'spearman':
-                        corr_pdb[method], p = correlation_nan(spearmanr, aa_dist.flatten(), attribution.flatten(),
-                                                              with_p=True)
-                        method_p[method].append(p)
-                correlation_dict[pdb_id] = corr_pdb
-            p_value_stats(self.name, method_p)
-            return correlation_dict
+                    pearson_corr_pdb[method] = pearsonr(aa_dist.flatten(), attribution.flatten())[0]
+                pearson_correlation_dict[pdb_id] = pearson_corr_pdb
+            return pearson_correlation_dict
 
-        if correlation_method == 'pearson':
-            self.aa_correlation = self.__handle_getter(aa_correlation, self.aa_correlation, overwrite,
-                                                       f"{self.name}/aa_correlation.p", f'AA correlation')
-            return self.aa_correlation
+        self.aa_correlation = self.__handle_getter(aa_correlation, self.aa_correlation, overwrite,
+                                                   f"{self.name}/aa_correlation.p", 'AA correlation')
+        return self.aa_correlation
 
-        elif correlation_method == 'spearman':
-            self.aa_spearmanc = self.__handle_getter(aa_correlation, self.aa_spearmanc, overwrite,
-                                                     f"{self.name}/aa_spearmanc.p", f'AA spearman correlation')
-            return self.aa_spearmanc
-
-    def get_aa_correlation_ps(self, correlation_method='pearson', overwrite=False):
+    def get_aa_correlation_ps(self, overwrite=False):
         """
         Calculate and save the AA correlation per sequence (epitope and CDR3) separately, loaded from file if already
         saved previously (and overwrite=False)
@@ -674,12 +716,12 @@ class ImrexAttributionsHandler:
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
             aa_attributions = self.get_aa_attributions()
             aa_distances = self.get_aa_distances()
-            correlation_dict = {}
+            pearson_correlation_dict = {}
             for pdb_id, methods in aa_attributions.items():
-                aa_dist = aa_distances[pdb_id]
+                aa_dist = aa_distances[pdb_id.split('_')[0]]
                 # Get starting index of epitope
-                seq_split = len(tcr3df.loc[pdb_id]['antigen.epitope'])
-                correlation_dict[pdb_id] = {}
+                seq_split = len(tcr3df.loc[pdb_id.split('_')[0]]['antigen.epitope'])
+                pearson_correlation_dict[pdb_id] = {}
                 for method, attribution in methods.items():
                     # Split distance and attributions arrays in epitope and CDR3
                     ep_aa_dist = aa_dist[:seq_split]
@@ -687,30 +729,16 @@ class ImrexAttributionsHandler:
                     ep_attribution = attribution[:seq_split]
                     cdr3_attribution = attribution[seq_split:]
                     # Calculate correlation separately for epitope and CDR3
-                    if correlation_method == 'pearson':
-                        correlation_dict[pdb_id][method] = (
-                            correlation_nan(pearsonr, ep_aa_dist.flatten(), ep_attribution.flatten()),
-                            correlation_nan(pearsonr, cdr3_aa_dist.flatten(), cdr3_attribution.flatten()))
-                    elif correlation_method == 'spearman':
-                        correlation_dict[pdb_id][method] = (
-                            correlation_nan(spearmanr, ep_aa_dist.flatten(), ep_attribution.flatten()),
-                            correlation_nan(spearmanr, cdr3_aa_dist.flatten(), cdr3_attribution.flatten()))
+                    pearson_correlation_dict[pdb_id][method] = (
+                        pearsonr(ep_aa_dist.flatten(), ep_attribution.flatten())[0],
+                        pearsonr(cdr3_aa_dist.flatten(), cdr3_attribution.flatten())[0])
+            return pearson_correlation_dict
 
-            return correlation_dict
+        self.aa_correlation_ps = self.__handle_getter(aa_correlation_ps, self.aa_correlation_ps, overwrite,
+                                                      f"{self.name}/aa_correlation_ps.p", 'AA correlation per sequence')
+        return self.aa_correlation_ps
 
-        if correlation_method == 'pearson':
-            self.aa_correlation_ps = self.__handle_getter(aa_correlation_ps, self.aa_correlation_ps, overwrite,
-                                                          f"{self.name}/aa_correlation_ps.p",
-                                                          'AA correlation per sequence')
-            return self.aa_correlation_ps
-
-        elif correlation_method == 'spearman':
-            self.aa_spearmanc_ps = self.__handle_getter(aa_correlation_ps, self.aa_spearmanc_ps, overwrite,
-                                                        f"{self.name}/aa_spearmanc_ps.p",
-                                                        'AA spearman correlation per sequence')
-            return self.aa_spearmanc_ps
-
-    def get_aa_random_correlation(self, correlation_method='pearson', overwrite=False):
+    def get_aa_random_correlation(self, overwrite=False):
         """
         Calculate and save the random correlation between the AA distance and AA feature attributions, loaded from file
         if already saved previously (and overwrite=False)
@@ -726,30 +754,20 @@ class ImrexAttributionsHandler:
         """
 
         def aa_random_correlation():
-            correlation = []
+            pearson_correlation = []
             aa_distances = self.get_aa_distances()
             for pdb_id, aa_dist in aa_distances.items():
                 for i in range(1000):
                     # Get random array with same length as distance array
                     random_a = np.random.rand(len(aa_dist))
-                    if correlation_method == 'pearson':
-                        correlation.append(correlation_nan(pearsonr, aa_dist.flatten(), random_a.flatten()))
-                    elif correlation_method == 'spearman':
-                        correlation.append(correlation_nan(spearmanr, aa_dist.flatten(), random_a.flatten()))
+                    pearson_correlation.append(pearsonr(aa_dist.flatten(), random_a.flatten())[0])
+            return np.mean(pearson_correlation), np.std(pearson_correlation)
 
-            return np.mean(correlation), np.std(correlation)
+        self.aa_random_correlation = self.__handle_getter(aa_random_correlation, self.aa_random_correlation, overwrite,
+                                                          f"aa_random_correlation.p", 'AA random correlation')
+        return self.aa_random_correlation
 
-        if correlation_method == 'pearson':
-            self.aa_random_correlation = self.__handle_getter(aa_random_correlation, self.aa_random_correlation,
-                                                              overwrite,
-                                                              f"aa_random_correlation.p", 'AA random correlation')
-            return self.aa_random_correlation
-        elif correlation_method == 'spearman':
-            self.aa_random_spearmanc = self.__handle_getter(aa_random_correlation, self.aa_random_spearmanc, overwrite,
-                                                            f"aa_random_spearmanc.p", 'AA random spearman correlation')
-            return self.aa_random_spearmanc
-
-    def get_aa_random_correlation_ps(self, correlation_method='pearson', overwrite=False):
+    def get_aa_random_correlation_ps(self, overwrite=False):
         """
         Calculate and save the AA random correlation per sequence (epitope and CDR3), loaded from file if already saved
         previously (and overwrite=False)
@@ -765,8 +783,8 @@ class ImrexAttributionsHandler:
         """
 
         def aa_random_correlation_ps():
-            correlation_ep = []
-            correlation_cdr3 = []
+            pearson_correlation_ep = []
+            pearson_correlation_cdr3 = []
             tcr3df = pd.read_csv(f"{self.save_folder}/tcr3d_imrex_output.csv", index_col='PDB_ID')
             aa_distances = self.get_aa_distances()
             for pdb_id, aa_dist in aa_distances.items():
@@ -777,31 +795,19 @@ class ImrexAttributionsHandler:
                     aa_dist_ep = aa_dist[:ep_len]
                     random_a_cdr3 = np.random.rand(cdr3_len)
                     aa_dist_cdr3 = aa_dist[ep_len:]
-                    if correlation_method == 'pearson':
-                        correlation_ep.append(correlation_nan(pearsonr, aa_dist_ep.flatten(), random_a_ep.flatten()))
-                        correlation_cdr3.append(
-                            correlation_nan(pearsonr, aa_dist_cdr3.flatten(), random_a_cdr3.flatten()))
-                    elif correlation_method == 'spearman':
-                        correlation_ep.append(correlation_nan(spearmanr, aa_dist_ep.flatten(), random_a_ep.flatten()))
-                        correlation_cdr3.append(
-                            correlation_nan(spearmanr, aa_dist_cdr3.flatten(), random_a_cdr3.flatten()))
+                    pearson_correlation_ep.append(pearsonr(aa_dist_ep.flatten(), random_a_ep.flatten())[0])
+                    pearson_correlation_cdr3.append(pearsonr(aa_dist_cdr3.flatten(), random_a_cdr3.flatten())[0])
                 print(f'{pdb_id} done')
-            return (np.mean(correlation_ep), np.std(correlation_ep)), (
-                np.mean(correlation_cdr3), np.std(correlation_cdr3))
+            return (np.mean(pearson_correlation_ep), np.std(pearson_correlation_ep)), (
+                np.mean(pearson_correlation_cdr3), np.std(pearson_correlation_cdr3))
 
-        if correlation_method == 'pearson':
-            self.aa_random_correlation_ps = self.__handle_getter(aa_random_correlation_ps,
-                                                                 self.aa_random_correlation_ps, overwrite,
-                                                                 f"aa_random_correlation_ps.p",
-                                                                 'AA random correlation per sequence')
-            return self.aa_random_correlation_ps
-        elif correlation_method == 'spearman':
-            self.aa_random_spearmanc_ps = self.__handle_getter(aa_random_correlation_ps, self.aa_random_spearmanc_ps,
-                                                               overwrite, f"aa_random_spearmanc_ps.p",
-                                                               'AA random spearman correlation per sequence')
-            return self.aa_random_spearmanc_ps
+        self.aa_random_correlation_ps = self.__handle_getter(aa_random_correlation_ps, self.aa_random_correlation_ps,
+                                                             overwrite,
+                                                             f"aa_random_correlation_ps.p",
+                                                             'AA random correlation per sequence')
+        return self.aa_random_correlation_ps
 
-    def set_all(self, overwrite=False):
+    def set_all(self, overwrite=False, split_channels=False):
         """
         Calculate and save all results for this model, results are loaded from file if already saved previously
         (and overwrite=False)
@@ -810,7 +816,7 @@ class ImrexAttributionsHandler:
         ----------
         overwrite   If True, all results will be re-calculated and overwrite the old saved results.
         """
-        self.get_attributions(overwrite)
+        self.get_attributions(overwrite, split_channels)
         self.get_distances(overwrite)
         self.get_norm_distances(overwrite)
         self.get_errors(overwrite)
@@ -824,13 +830,12 @@ class ImrexAttributionsHandler:
         self.get_aa_errors_ps(overwrite)
         self.get_aa_random_error(overwrite)
         self.get_aa_random_error_ps(overwrite)
-        for correlation_method in ['pearson', 'spearman']:
-            self.get_correlation(correlation_method, overwrite)
-            self.get_random_correlation(correlation_method, overwrite)
-            self.get_aa_correlation(correlation_method, overwrite)
-            self.get_aa_correlation_ps(correlation_method, overwrite)
-            self.get_aa_random_correlation(correlation_method, overwrite)
-            self.get_aa_random_correlation_ps(correlation_method, overwrite)
+        self.get_correlation(overwrite)
+        self.get_random_correlation(overwrite)
+        self.get_aa_correlation(overwrite)
+        self.get_aa_correlation_ps(overwrite)
+        self.get_aa_random_correlation(overwrite)
+        self.get_aa_random_correlation_ps(overwrite)
 
     def imrex_setup(self):
         """
@@ -843,9 +848,9 @@ class ImrexAttributionsHandler:
         model = tf.keras.models.load_model(self.model_path)
         input_imgs = {}
         for f in sorted(os.listdir(self.image_path)):
-            if f[-4:] == '.pkl':
-                input_imgs[f[:-4]] = tf.cast(tf.convert_to_tensor(pickle.load(open(self.image_path + f, 'rb'))),
-                                             tf.float32)
+            if f.endswith('.zip'):
+                continue
+            input_imgs[f[:-4]] = tf.cast(tf.convert_to_tensor(pickle.load(open(self.image_path + f, 'rb'))), tf.float32)
         return model, input_imgs
 
     def make_prediction(self, img):
@@ -867,14 +872,15 @@ class ImrexAttributionsHandler:
         prediction = tf.math.round(prob)
         return prediction
 
-    def get_shap_attributions(self, background):
+    def get_shap_attributions(self, background, split_channels):
         """
         Calculate the SHAP feature attributions based on the given background method
 
         Parameters
         ----------
-        background  'mean' or 'dist', with 'mean' the average input is taken as background, with 'dist' the background
-                    is sampled from the distribution of all samples
+        background      'mean' or 'dist', with 'mean' the average input is taken as background, with 'dist' the
+                        background is sampled from the distribution of all samples
+        split_channels  If True, attribution calculation will be performed for each input channel separately
 
         Returns
         -------
@@ -905,15 +911,19 @@ class ImrexAttributionsHandler:
         # Convert them back to a list of images
         attributions = list_feature_list_to_list_imgs(shap_values)
         # Take the absolute value and merge per feature channel
-        return tf.reduce_sum(tf.math.abs(attributions), axis=-1).numpy()
+        if split_channels:
+            return tf.math.abs(attributions).numpy()
+        else:
+            return tf.reduce_sum(tf.math.abs(attributions), axis=-1).numpy()
 
-    def get_ig_attribution(self, input_img):
+    def get_ig_attribution(self, input_img, split_channels):
         """
         Calculate the Integrated Gradients (IG) feature attribution for a single sample
 
         Parameters
         ----------
         input_img   The input for which to calculate the IG feature attributions
+        split_channels     todo
 
         Returns
         -------
@@ -942,17 +952,20 @@ class ImrexAttributionsHandler:
         attributions = (input_img - baseline) * ig
 
         # Take the absolute value and merge per feature channel
-        attribution_mask = tf.reduce_sum(tf.math.abs(attributions), axis=-1)
-        return attribution_mask.numpy()
+        if split_channels:
+            return tf.math.abs(attributions).numpy()
+        else:
+            return tf.reduce_sum(tf.math.abs(attributions), axis=-1).numpy()
 
-    def get_saliency_attribution(self, im, method):
+    def get_saliency_attribution(self, im, method, split_channels):
         """
         Calculate the feature attributions for a single input with a specific 'saliency' method
 
         Parameters
         ----------
-        im          Input image
-        method      Saliency method to use for feature attribution extraction
+        im                 Input image
+        method             Saliency method to use for feature attribution extraction
+        split_channels     todo
 
         Returns
         -------
@@ -991,8 +1004,8 @@ class ImrexAttributionsHandler:
                                                    x_steps=50, x_baseline=baseline, batch_size=128)
         elif method == 'GuidedIG':
             saliency_object = saliency.GuidedIG()
-            mask = saliency_object.GetMask(im, call_model_function, call_model_args, x_steps=50, x_baseline=baseline,
-                                           max_dist=1.0, fraction=0.5)
+            mask = saliency_object.GetMask(im, call_model_function, call_model_args, x_steps=50,
+                                           x_baseline=baseline, max_dist=1.0, fraction=0.5)
         elif method == 'XRAI':
             saliency_object = saliency.XRAI()
             mask = saliency_object.GetMask(im.numpy(), call_model_function, call_model_args, batch_size=128)
@@ -1007,7 +1020,13 @@ class ImrexAttributionsHandler:
             return
 
         if method != 'XRAI':
-            return saliency.VisualizeImageGrayscale(mask)
+            if split_channels:
+                if isinstance(mask, np.ndarray):
+                    return mask
+                else:
+                    return np.array(mask)  # TODO!!
+            else:
+                return saliency.VisualizeImageGrayscale(mask)
         else:
             return mask
 
@@ -1054,28 +1073,7 @@ def main():
         image_path="data/tcr3d_images/",
         save_folder="data"
     )
-
-    imrex_scrambled_eps = ImrexAttributionsHandler(
-        name="imrex_scrambled_eps",
-        display_name="Imrex scrambled epitopes",
-        model_path="ImRex/models/models/2022-11-30_13-55-56_scrambled_eps/iteration_0/"
-                   "2022-11-30_13-55-56_scrambled_eps-epoch20.h5",
-        image_path="data/tcr3d_images/",
-        save_folder="data"
-    )
-
-    imrex_scrambled_tcrs = ImrexAttributionsHandler(
-        name="imrex_scrambled_tcrs",
-        display_name="Imrex scrambled TCRs",
-        model_path="ImRex/models/models/2022-12-01_09-52-59_scrambled_tcrs/iteration_0/"
-                   "2022-12-01_09-52-59_scrambled_tcrs-epoch20.h5",
-        image_path="data/tcr3d_images/",
-        save_folder="data"
-    )
-
-    imrex_attributions.set_all()
-    imrex_scrambled_eps.set_all()
-    imrex_scrambled_tcrs.set_all()
+    imrex_attributions.set_all(overwrite=True, split_channels=True)
 
 
 if __name__ == "__main__":
