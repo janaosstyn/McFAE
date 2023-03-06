@@ -98,7 +98,50 @@ def to_dataframes(
     return result_list
 
 
-def plot_model_comparison(metrics, names, savename=None):
+def get_comparison_plot_filename(
+        model_handlers,
+        keywords=None,
+        method=None,
+        correlation_method=None,
+        channels=False,
+        combined=False
+):
+    import inspect
+    dir_name = f"output/plots/comparison_plots/{inspect.currentframe().f_back.f_code.co_name.replace('plot_', '')}_plots"
+
+    if not os.path.isdir(dir_name):
+        os.mkdir(dir_name)
+
+    return f"{dir_name}/" \
+           f"{'_'.join([str(handler) for handler in model_handlers])}" \
+           f"{f'_{method}' if method is not None else ''}" \
+           f"{f'_{correlation_method}' if correlation_method is not None else ''}" \
+           f"{'' if keywords is None else '_' + '_'.join(keywords)}" \
+           f"{f'_ch' if channels else ''}" \
+           f"{f'_comb' if channels and combined else ''}" \
+           f".png"
+
+
+def get_sample_2d_details_filename(
+        model_handler,
+        pdb_id,
+        method,
+        channels=False,
+        combined=False
+):
+    dir_name = f'output/plots/sample_2d_details/{str(model_handler)}'
+
+    if not os.path.isdir(dir_name):
+        os.mkdir(dir_name)
+
+    return f"{dir_name}/" \
+           f"{pdb_id}" \
+           f"_{method}" \
+           f"{f'_ch' if channels else ''}" \
+           f"{f'_comb' if channels and combined else ''}" \
+
+
+def plot_model_performance_comparison(metrics, names, save_name=""):
     if len(names) > 3:
         plt.figure(figsize=(6.4 / 1.3, 4.8 / 1.3))
     else:
@@ -107,19 +150,26 @@ def plot_model_comparison(metrics, names, savename=None):
     val_roc_aucs = [m['val_roc_auc'].to_numpy() for m in metrics]
     val_pr_aucs = [m['val_pr_auc'].to_numpy() for m in metrics]
     for metric, m_name, short_name in zip([val_roc_aucs, val_pr_aucs], ['ROC AUC', 'PR AUC'], ['roc', 'pr']):
-        for name, results in zip(names, metric):
-            print(name, m_name, round(np.mean(results), 3), '+-', round(np.std(results), 3))
+        # for name, results in zip(names, metric):
+        #     print(name, m_name, round(np.mean(results), 3), '+-', round(np.std(results), 3))
         sns.boxplot(data=metric, showfliers=False)
         sns.stripplot(data=metric, color='0.25', s=4)
         plt.ylabel(m_name)
         plt.xticks(range(len(names)), [split_line(n, 13) for n in names])
         plt.grid(axis='y')
         plt.tight_layout()
-        plt.savefig(
-            f'output/plots/model_performance_comparison_{short_name}{"" if savename is None else "_" + savename}.png',
+        # plt.savefig(
+        #     fname=get_comparison_plot_filename(
+        #
+        #
+        #         variables=[short_name, save_name])
+        #     , dpi=300
+        # )
+        plt.savefig(  # TODO
+            f'output/plots/model_performance_comparison_{short_name}{"" if save_name is None else "_" + save_name}.png',
             dpi=300)
         plt.clf()
-    print()
+    # print()
 
 
 def plot_model_performance():
@@ -132,18 +182,18 @@ def plot_model_performance():
     titan = pd.read_csv('TITAN/models/titanData_strictsplit_nocdr3/full_metrics.csv')
 
     sns.set_palette("deep")
-    plot_model_comparison(
+    plot_model_performance_comparison(
         [imrex, titan],
         ['ImRex', 'TITAN'], "subset")
-    plot_model_comparison(
+    plot_model_performance_comparison(
         [imrex, titan, titan_on_imrex_data, titan_scrambled_tcs],
         ['ImRex', 'TITAN', 'TITAN on ImRex data', 'TITAN scrambled TCRs'])
-    plot_model_comparison(
+    plot_model_performance_comparison(
         [imrex, imrex_scrambled_eps, titan, titan_on_imrex_data, titan_scrambled_tcs],
         ['ImRex', 'ImRex scrambled epitopes', 'TITAN', 'TITAN on ImRex data', 'TITAN scrambled TCRs'],
         'scrambled epitopes')
 
-    plot_model_comparison(
+    plot_model_performance_comparison(
         [imrex, imrex_scrambled_tcrs, titan, titan_on_imrex_data, titan_scrambled_tcs],
         ['ImRex', 'ImRex scrambled TCRs', 'TITAN', 'TITAN on ImRex data', 'TITAN scrambled TCRs'],
         'scrambled tcrs')
@@ -152,7 +202,8 @@ def plot_model_performance():
 def plot_method_correlation_comparison(
         attribution_handler: [ImrexAttributionsHandler, TITANAttributionsHandler],
         methods_subset: List[str] = None,
-        display_combined=False
+        display_combined=False,
+        correlation_method='pearson'
 ):
     """
     Create a plot that compares correlation between the different feature attribution extraction methods.
@@ -164,19 +215,24 @@ def plot_method_correlation_comparison(
     attribution_handler: either ImrexAttributionsHandler or TITANAttributionsHandler
     methods_subset: a list of methods to plot (optionally, if not provided all methods are plotted)
     display_combined
+    correlation_method
     """
 
     # differentiate based on the type of the attributions handler
     if isinstance(attribution_handler, ImrexAttributionsHandler):
         attribution_types = ['aa', 'pair-wise']
-        correlations = [attribution_handler.get_aa_correlation(), attribution_handler.get_correlation()]
+        correlations = [
+            attribution_handler.get_aa_correlation(correlation_method),
+            attribution_handler.get_correlation(correlation_method)
+        ]
         random_correlations = [
-            attribution_handler.get_aa_random_correlation(), attribution_handler.get_random_correlation()
+            attribution_handler.get_aa_random_correlation(correlation_method),
+            attribution_handler.get_random_correlation(correlation_method)
         ]
     elif isinstance(attribution_handler, TITANAttributionsHandler):
         attribution_types = ['aa']
-        correlations = [attribution_handler.get_aa_correlation()]
-        random_correlations = [attribution_handler.get_aa_random_correlation()]
+        correlations = [attribution_handler.get_aa_correlation(correlation_method)]
+        random_correlations = [attribution_handler.get_aa_random_correlation(correlation_method)]
     else:
         raise TypeError(
             f"attribution_handler of wrong type, got {type(attribution_handler)} but expected "
@@ -275,10 +331,13 @@ def plot_method_correlation_comparison(
 
         plt.tight_layout()
         plt.savefig(
-            f'output/plots/{attribution_handler.name}_{attribution_type}_pearson'
-            f'_correlation_comparison{"_subset" if methods_subset is not None else ""}'
-            f'{"_channels" if len(method_correlation) > 1 else ""}{"_combined" if display_combined else ""}.png',
-            dpi=300
+            fname=get_comparison_plot_filename(
+                model_handlers=[attribution_handler],
+                keywords=[attribution_type] + (['subset'] if methods_subset is not None else []),
+                correlation_method=correlation_method,
+                channels=len(method_correlation) > 1,
+                combined=display_combined
+            ), dpi=300
         )
         plt.clf()
 
@@ -417,16 +476,25 @@ def plot_method_correlation_comparison_all_models_subset(model_handlers, display
             name_ax.legend()
 
     plt.tight_layout()
+    name = '_'.join([model_handler.name for model_handler in model_handlers])
     plt.savefig(
-        f'output/plots/pearson_comparison_all_subset'
-        f'{"_channels" if len(correlations) > 1 else ""}'
-        f'{"_combined" if display_combined else ""}.png',
-        dpi=300
+        fname=get_comparison_plot_filename(
+            model_handlers=model_handlers,
+            correlation_method='pearson',
+            channels=len(correlations) > 1,
+            combined=display_combined
+        )
     )
     plt.clf()
 
 
-def plot_aa_model_comparison(model_handlers, random_index, method, save_post, display_combined=False):
+def plot_aa_pearson_correlation_model_comparison(
+        model_handlers,
+        random_index,
+        method,
+        save_post,
+        display_combined=False
+):
     """
     Compare epitope with CDR3 for the listed models (model_handlers)
 
@@ -548,8 +616,8 @@ def plot_aa_model_comparison(model_handlers, random_index, method, save_post, di
     re_range = (re[0] + re[1], re[0] - re[1])
     x_ps = [-0.5, len(names_ps) - 0.5]
     x = [-0.5, len(names) - 0.5]
-    print(f"Random correlation epitope ({re_ps[0][0]} +- {re_ps[0][1]})")
-    print()
+    # print(f"Random correlation epitope ({re_ps[0][0]} +- {re_ps[0][1]})")
+    # print()
 
     sep = ' ' if save_post == 'all' else '\n'
     axs[1].plot(x_ps, [re_ps[0][0]] * 2, '--',
@@ -564,11 +632,11 @@ def plot_aa_model_comparison(model_handlers, random_index, method, save_post, di
 
     axs[0].fill_between(x, re_range[0], re_range[1], alpha=0.3)
     if save_post == "all":
-        axs[1].legend()
-        axs[0].legend()
+        axs[1].legend(bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
+        axs[0].legend(bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
     else:
-        axs[1].legend(fontsize=9)
-        axs[0].legend(fontsize=8)
+        axs[1].legend(fontsize=9, bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
+        axs[0].legend(fontsize=8, bbox_to_anchor=(0, 1.02, 1, 0.3), loc="lower right", borderaxespad=0)
     axs[0].set_xlabel('Model')
     axs[1].set_xlabel('Model + sequence')
 
@@ -576,8 +644,15 @@ def plot_aa_model_comparison(model_handlers, random_index, method, save_post, di
     axs[0].grid(axis='y')
     axs[1].grid(axis='y')
 
-    plt.savefig(f'output/plots/models_{method}_pearson_correlation_comparison_{save_post}'
-                f'{"_combined" if display_combined else ""}.png', dpi=300)
+    plt.savefig(
+        fname=get_comparison_plot_filename(
+            model_handlers=model_handlers,
+            method=method,
+            combined=display_combined,
+            channels=channel_split
+        ),
+        dpi=300
+    )
     plt.close()
 
 
@@ -642,9 +717,12 @@ def plot_sample_details(model_handlers, method, save_post, dist_i=0, display_com
         plt.yticks(list(range(len(heatmap))), names)
         plt.colorbar(grid, orientation='horizontal', pad=0.2, label=f"{method} feature attribution")
         plt.tight_layout()
-        plt.savefig(f'output/plots/sample_details/{method}_{pdb_id}_{save_post}{"_combined" if display_combined else ""}'
+        name = '_'.join([model_handler.name for model_handler in model_handlers])
+        plt.savefig(f'output/plots/sample_details/{name}_{method}_{pdb_id}_{save_post}{"_combined" if display_combined else ""}'
                     f'.png', dpi=300, bbox_inches='tight')
         plt.clf()
+        print(f'output/plots/sample_details/{name}_{method}_{pdb_id}_{save_post}{"_combined" if display_combined else ""}'
+              f'.png')
 
 
 def plot_TITAN_methods_sample_details(titan_handler, imrexhandler, subset):
@@ -672,7 +750,7 @@ def plot_TITAN_methods_sample_details(titan_handler, imrexhandler, subset):
                    sequences[pdb_id][0] + sequences[pdb_id][1])
         plt.yticks(list(range(len(heatmap))), names)
         plt.colorbar(grid, orientation='horizontal', pad=0.2, label=f"{titan_handler.display_name} feature attribution")
-        plt.tight_layout()
+        plt.tight_layout()  # TODO: filename
         plt.savefig(f'output/plots/sample_details/{titan_handler.display_name}_{pdb_id}.png', dpi=300,
                     bbox_inches='tight')
         plt.clf()
@@ -683,10 +761,6 @@ def plot_2d_sample_attributions(model_handler, methods, save_name, display_combi
     sequences = model_handler.get_sequences()
     distances = model_handler.get_norm_distances()
     channel_split = '_' in list(attributions.keys())[0]
-    if channel_split:
-        save_name += '_channels'
-    if len(methods) == 1 and display_combined:
-        save_name += '_combined'
 
     # gradient gray color bar
     fig = plt.figure(figsize=(6.4 / 2, 4.8 / 2))
@@ -791,7 +865,17 @@ def plot_2d_sample_attributions(model_handler, methods, save_name, display_combi
 
         plt.yticks(list(range(len(cdr3))), cdr3)
         plt.tight_layout(pad=0.1)
-        plt.savefig(f'output/plots/sample_2d_details/{pdb_id.split("_")[0]}_{save_name}.png', bbox_inches='tight', dpi=300)
+        plt.savefig(
+            fname=get_sample_2d_details_filename(
+                model_handler=model_handler,
+                pdb_id=pdb_id.split("_")[0],
+                channels=channel_split,
+                method=save_name,
+                combined=len(methods) == 1 and display_combined
+            ),
+            dpi=300,
+            bbox_inches='tight'
+        )
         plt.close(fig)
 
 
@@ -830,7 +914,7 @@ def plot_2d_ImRex_input(image_path, model_handler):
         axs[0].set_ylabel('CDR3')
         axs[2].set_xlabel('epitope')
         plt.tight_layout()
-        plt.savefig(f'output/plots/imrex_input_features/{pdb_id}.png', dpi=300)
+        plt.savefig(f'output/plots/{model_handler.name}_input_features/{pdb_id}.png', dpi=300)
         plt.close()
 
 
@@ -854,7 +938,9 @@ def plot_positional_average(model_handlers, method, save_post, dist_i=0, display
     sequences = model_handlers[dist_i].get_sequences()
     distances = model_handlers[dist_i].get_aa_norm_distances()
 
+    channel_split = False
     if '_' in list(model_attributions[list(model_attributions.keys())[0]].keys())[0]:
+        channel_split = True
         extracted_model_attributions_dict = dict()
         for model_name, attributions in model_attributions.items():
             extracted_model_attributions_list = [dict(), dict(), dict(), dict()]
@@ -915,12 +1001,238 @@ def plot_positional_average(model_handlers, method, save_post, dist_i=0, display
     plt.colorbar(grid, orientation='horizontal', pad=0.2, label=f"{method} feature attribution")
     plt.clim(0, 1)
     plt.tight_layout()
-    plt.savefig(f'output/plots/average_pos_attributions_{method}_{save_post}{"_combined" if display_combined else ""}'
-                f'.png', dpi=300, bbox_inches='tight')
+    plt.savefig(
+        fname=get_comparison_plot_filename(
+            model_handlers=model_handlers,
+            method=method,
+            channels=channel_split,
+            combined=display_combined
+        ),
+        dpi=300,
+        bbox_inches='tight'
+    )
     plt.clf()
 
 
+def plot_random_positional_average_diff(
+        model_handlers,
+        method,
+        save_post,
+        display_combined=False
+):
+    """
+    Creates a feature attribution heat map for each pdb complex.
+
+    Parameters
+    ----------
+    model_handlers
+    method
+    save_post
+    display_combined
+
+    Returns
+    -------
+
+    """
+
+    # get the model attributions for both handlers
+    model_attributions = {
+        model.display_name: model.get_aa_norm_attributions()
+        for model in model_handlers
+    }
+    # sequences and distances are the same for both handlers
+    sequences = model_handlers[0].get_sequences()
+    distances = model_handlers[0].get_aa_norm_distances()
+
+    # if channels were split, tune the model_attributions dictionary
+    channel_split = False
+    if '_' in list(model_attributions[list(model_attributions.keys())[0]].keys())[0]:
+        channel_split = True
+        model_attributions = {
+            model_name: {
+                **{
+                    f'Ch {i}': {
+                        key.replace(f'_{i}', ''): value for key, value in model_attributions[model_name].items()
+                        if key.endswith(f'_{i}')
+                    }
+                    for i in range(4)
+                },
+                **{
+                    f'Combined': {
+                        key.replace(f'_combined', ''): value for key, value in model_attributions[model_name].items()
+                        if key.endswith('_combined')
+                    }
+                }
+            }
+            for model_name in [handler.display_name for handler in model_handlers]
+        }
+
+    # get the pdbs that occur in model attributions
+    pdb_list = list(model_attributions[model_handlers[0].display_name]['Ch 0'].keys())
+
+    # obtain the maximum lengths of eps and cdr3s
+    max_ep = len(max([v[0] for k, v in sequences.items() if k in pdb_list], key=len))
+    max_cdr3 = len(max([v[1] for k, v in sequences.items() if k in pdb_list], key=len))
+
+    # extract distances (overall) and attributions (per model handler)
+    pos_distances_ep = []
+    pos_distances_cdr3 = []
+    pos_model_attributions = {
+        k: {
+            ch: {'ep': [], 'cdr3': []} for ch in model_attributions[model_handlers[0].display_name].keys()
+        }
+        for k in model_attributions.keys()
+    }
+    for pdb_id, dist in distances.items():
+        if pdb_id not in pdb_list:
+            continue
+        ep = sequences[pdb_id][0]
+
+        # extract distances
+        pos_distances_ep.append(aa_add_padding(dist[:len(ep)], max_ep))
+        pos_distances_cdr3.append(aa_add_padding(dist[len(ep):], max_cdr3))
+
+        # extract attributions for each model handler
+        for model_name, model_attribution in model_attributions.items():
+            for channel, channel_attribution in model_attribution.items():
+                attribution = channel_attribution[pdb_id][method]
+                pos_model_attributions[model_name][channel]['ep'].append(aa_add_padding(attribution[:len(ep)], max_ep))
+                pos_model_attributions[model_name][channel]['cdr3'].append(aa_add_padding(attribution[len(ep):], max_cdr3))
+
+    # create heat maps
+    heatmaps = {
+        model.display_name: []
+        for model in model_handlers
+    }
+    names = []
+    for model_name, pos_attributions in pos_model_attributions.items():
+        for channel, channel_attributions in pos_attributions.items():
+            heatmaps[model_name].append(
+                np.concatenate(
+                    (np.nanmean(channel_attributions['ep'], 0), [-1], np.nanmean(channel_attributions['cdr3'], 0))
+                )
+            )
+            names.append(channel)
+
+    # calculate differences
+    scramb_ep_handler = [handler for handler in model_handlers if 'scrambled_eps' in handler.name][0]
+    scramb_tcr_handler = [handler for handler in model_handlers if 'scrambled_tcrs' in handler.name][0]
+    imrex_attributions_handler = [handler for handler in model_handlers if 'nocdr3dup' in handler.name][0]
+
+    heatmaps['mean'] = []
+    for i in range(5):
+        arr1 = heatmaps[scramb_ep_handler.display_name][i]
+        arr2 = heatmaps[scramb_tcr_handler.display_name][i]
+        heatmaps['mean'].append(
+            (arr1 + arr2) / 2
+        )
+
+    heatmaps['diff_1'] = []  # scrambled eps - scrambled tcrs
+    heatmaps['diff_2'] = []  # scrambled eps - nocdr3dup
+    heatmaps['diff_3'] = []  # scrambled tcrs - nocdr3dup
+    for i in range(5):
+        arr1 = heatmaps[scramb_ep_handler.display_name][i]
+        arr2 = heatmaps[scramb_tcr_handler.display_name][i]
+        arr3 = heatmaps[imrex_attributions_handler.display_name][i]
+        heatmaps['diff_1'].append(np.abs(arr1 - arr2))
+        heatmaps['diff_2'].append(np.abs(arr1 - arr3))
+        heatmaps['diff_3'].append(np.abs(arr2 - arr3))
+
+    heatmaps['sub'] = []
+    heatmaps['add'] = []
+
+    for i in range(5):
+        mean_arr = heatmaps['mean'][i]
+        imrex_arr = heatmaps[imrex_attributions_handler.display_name][i]
+        heatmaps['add'].append(
+            imrex_arr + 1 - mean_arr
+        )
+        heatmaps['sub'].append(
+            imrex_arr - mean_arr
+        )
+        # min_val = min(min_val, np.min(heatmaps['add'][-1]))
+        # max_val = max(max_val, np.max(heatmaps['add'][-1]))
+        heatmaps['add'][-1][max_ep] = 0
+    # for i in range(5):
+    #     heatmaps['diff'][i] = heatmaps['diff'][i] * (1 / max_val)
+
+    for name, heatmap in heatmaps.items():
+        heatmap.append(np.concatenate((np.nanmean(pos_distances_ep, 0), [-1], np.nanmean(pos_distances_cdr3, 0))))
+
+    names = sorted(list(set(names)))
+    names.append('Residue proximity')
+    for name, heatmap in heatmaps.items():
+        if 'ImRex' in name:
+            continue
+
+        # scale
+        if 'diff' not in name:
+            min_val, max_val = math.inf, -math.inf
+            for i in range(5):
+                min_val = min(min_val, np.min(heatmap[i]))
+                max_val = max(max_val, np.max(heatmap[i]))
+            print(max_val, min_val)
+            max_val += -min_val
+            print(max_val, min_val)
+            for i in range(5):
+                heatmap[i] = -min_val + heatmap[i] * (1 / max_val)
+            min_val, max_val = math.inf, -math.inf
+            for i in range(5):
+                min_val = min(min_val, np.min(heatmap[i]))
+                max_val = max(max_val, np.max(heatmap[i]))
+                heatmaps['add'][-1][max_ep] = 0
+            print(max_val, min_val)
+
+        plt.gcf().set_size_inches(10 / 1.3, (4 if display_combined else 3) / 1.3)
+        heatmap = np.array(heatmap)
+        heatmap = np.ma.masked_where(heatmap == -1, heatmap)
+        grid = plt.imshow(heatmap, cmap='Greys')
+        plt.xticks(list(range(max_ep)) + list(range(max_ep + 1, max_ep + 1 + max_cdr3)),
+                   ['$\mathregular{e_{' + str(i + 1) + '}}$' for i in range(max_ep)] +
+                   ['$\mathregular{c_{' + str(i + 1) + '}}$' for i in range(max_cdr3)])
+        plt.yticks(list(range(len(heatmap))), names)
+        plt.colorbar(grid, orientation='horizontal', pad=0.2, label=f"{method} feature attribution")
+        plt.clim(0, 1)
+        plt.tight_layout()
+        if name == 'diff_1':
+            display_handlers = [scramb_ep_handler, scramb_tcr_handler]
+            name = 'diff'
+        elif name == 'diff_2':
+            display_handlers = [scramb_ep_handler, imrex_attributions_handler]
+            name = 'diff'
+        elif name == 'diff_3':
+            display_handlers = [scramb_tcr_handler, imrex_attributions_handler]
+            name = 'diff'
+        else:
+            display_handlers = model_handlers
+        print(name)
+        plt.savefig(
+            fname=get_comparison_plot_filename(
+                model_handlers=display_handlers,
+                method=method,
+                channels=channel_split,
+                combined=display_combined,
+                keywords=[name]
+            ),
+            dpi=300,
+            bbox_inches='tight'
+        )
+        plt.clf()
+
+
+def random_function_2():
+    import inspect
+    print(inspect.currentframe().f_back.f_code.co_name)
+
+def random_function(val):
+    # import inspect
+    # print(inspect.currentframe().f_code.co_name)
+    random_function_2()
+    exit()
+
+
 def main():
+    # random_function(val=0)
     imrex_attributions_handler = ImrexAttributionsHandler(
         name="imrex_nocdr3dup",
         display_name="ImRex",
@@ -970,89 +1282,101 @@ def main():
     # )
     sns.set_palette("deep")
 
-    save_post = 'imrex_channels'
-    model_handlers = [imrex_attributions_handler]
-    # model_handlers = [imrex_attributions_handler, titan_strictsplit_handler]
-
-    # Fig 2: Correlation comparison of 4 extraction methods for ImRex pairwise, ImRex AA (and maybe TITAN)
-    print('plot_method_correlation_comparison_all_models_subset')
-    plot_method_correlation_comparison_all_models_subset(model_handlers=model_handlers)
-    plot_method_correlation_comparison_all_models_subset(model_handlers=model_handlers, display_combined=True)
-    # TODO: this one should be finished now
-
-    # Fig 3: Feature attributions for ImRex AA and TITAN and Residue proximity
-    print('plot_sample_details')
-    plot_sample_details(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post)
-    plot_sample_details(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post, display_combined=True)
-    # TODO: this one should be finished now
-
-    # Fig 4: Average feature attributions for ImRex AA and TITAN and Residue proximity
-    print('plot_positional_average')
-    plot_positional_average(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post)
-    plot_positional_average(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post,
-                            display_combined=True)
-    # TODO: this one should be finished now
-
-    # Fig 5: Compare correlation between ImRex AA and TITAN and epitope/CDR3
-    print('plot_aa_model_comparison')
-    plot_aa_model_comparison(model_handlers=model_handlers, random_index=0, method='SmoothGrad', save_post=save_post)
-    plot_aa_model_comparison(model_handlers=model_handlers, random_index=0, method='SmoothGrad', save_post=save_post,
-                             display_combined=True)
-    # TODO: this one should be finished now
-
-    # Fig 6: Model performance
-    # plot_model_performance()
-    # TODO: nothing changes?
-
-    # Fig S1: ImRex 2D feature encoding input
-    # plot_2d_ImRex_input('data/tcr3d_images/', imrex_attributions_handler)
-    # TODO: nothing changes?
-
-    # Fig S2: Same as Fig 2 but with all extraction methods
-    print('plot_method_correlation_comparison')
-    plot_method_correlation_comparison(imrex_attributions_handler)
-    plot_method_correlation_comparison(imrex_attributions_handler, display_combined=True)
-    # plot_method_correlation_comparison(titan_strictsplit_handler)
-    # TODO: this one should be finished now (TITAN may no work)
-
-    # Fig S3 and S4: Detailed feature attributions for ImRex and TITAN
-    print('plot_2d_sample_attributions')
-    plot_2d_sample_attributions(
-        model_handler=imrex_attributions_handler,
-        methods=['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'],
-        save_name="4_methods"
+    plot_random_positional_average_diff(
+        model_handlers=[imrex_scrambled_eps, imrex_scrambled_tcrs, imrex_attributions_handler],
+        method='SmoothGrad',
+        save_post='imrex_channels',
+        display_combined=True
     )
-    for method in ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist']:
-        print('plot_2d_sample_attributions', method)
+
+    save_post = 'imrex_channels'
+    for model_handler in [imrex_attributions_handler, imrex_scrambled_eps, imrex_scrambled_tcrs]:
+        model_handlers = [model_handler]
+        print(model_handler.display_name)
+        # model_handlers = [imrex_attributions_handler, titan_strictsplit_handler]
+
+        # Fig 2: Correlation comparison of 4 extraction methods for ImRex pairwise, ImRex AA (and maybe TITAN)
+        print('plot_method_correlation_comparison_all_models_subset')
+        plot_method_correlation_comparison_all_models_subset(model_handlers=model_handlers)
+        plot_method_correlation_comparison_all_models_subset(model_handlers=model_handlers, display_combined=True)
+        # # TODO: this one should be finished now
+        #
+        # # Fig 3: Feature attributions for ImRex AA and TITAN and Residue proximity
+        # print('plot_sample_details')
+        # plot_sample_details(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post)
+        # plot_sample_details(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post, display_combined=True)
+        # # TODO: this one should be finished now
+
+        # Fig 4: Average feature attributions for ImRex AA and TITAN and Residue proximity
+        print('plot_positional_average')
+        plot_positional_average(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post)
+        plot_positional_average(model_handlers=model_handlers, method='SmoothGrad', save_post=save_post,
+                                display_combined=True)
+        # TODO: this one should be finished now
+
+        # Fig 5: Compare correlation between ImRex AA and TITAN and epitope/CDR3
+        print('plot_aa_model_comparison')
+        plot_aa_pearson_correlation_model_comparison(model_handlers=model_handlers, random_index=0, method='SmoothGrad', save_post=save_post)
+        plot_aa_pearson_correlation_model_comparison(model_handlers=model_handlers, random_index=0, method='SmoothGrad', save_post=save_post,
+                                                     display_combined=True)
+        # TODO: this one should be finished now
+
+        # Fig 6: Model performance
+        # plot_model_performance()
+        # TODO: nothing changes?
+
+        # Fig S1: ImRex 2D feature encoding input
+        # plot_2d_ImRex_input('data/tcr3d_images/', imrex_attributions_handler)
+        # TODO: nothing changes?
+
+        # Fig S2: Same as Fig 2 but with all extraction methods
+        print('plot_method_correlation_comparison')
+        plot_method_correlation_comparison(model_handler)
+        plot_method_correlation_comparison(model_handler, display_combined=True)
+        # plot_method_correlation_comparison(titan_strictsplit_handler)
+        # TODO: this one should be finished now (TITAN may no work)
+
+        # Fig S3 and S4: Detailed feature attributions for ImRex and TITAN
+        print('plot_2d_sample_attributions')
         plot_2d_sample_attributions(
-            model_handler=imrex_attributions_handler,
-            methods=[method],
-            save_name=method
+            model_handler=model_handler,
+            methods=['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'],
+            save_name="4_methods"
         )
-        plot_2d_sample_attributions(
-            model_handler=imrex_attributions_handler,
-            methods=[method],
-            save_name=method,
-            display_combined=True
-        )
-    # TODO: this one should be finished now
+        for method in ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist']:
+            print('plot_2d_sample_attributions', method)
+            plot_2d_sample_attributions(
+                model_handler=model_handler,
+                methods=[method],
+                save_name=method
+            )
+            plot_2d_sample_attributions(
+                model_handler=model_handler,
+                methods=[method],
+                save_name=method,
+                display_combined=True
+            )
+        # TODO: this one should be finished now
 
-    # plot_TITAN_methods_sample_details(titan_strictsplit_handler, imrex_attributions_handler,
-    #                                   ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'])
-    # TODO: TITAN, skipped this one
+        # plot_TITAN_methods_sample_details(titan_strictsplit_handler, imrex_attributions_handler,
+        #                                   ['Vanilla', 'VanillaIG', 'SmoothGrad', 'SHAP BGdist'])
+        # TODO: TITAN, skipped this one
 
-    # # Fig S5: Average feature attribution for the 3 models
-    # plot_positional_average([imrex_attributions_handler, titan_strictsplit_handler, titan_on_imrex_data_handler],
-    #                         'SmoothGrad', 'all')
-    # TODO: same implementation as figure 4
-    # # Fig S6: Like Fig 5 but on all models
-    # plot_aa_model_comparison([imrex_attributions_handler, titan_strictsplit_handler, titan_on_imrex_data_handler], 0,
-    #                          'SmoothGrad', 'all', (12.8 / 1.15, 4.8 / 1.15))
-    # TODO: same implementation as figure 5
+        # # Fig S5: Average feature attribution for the 3 models
+        # plot_positional_average([imrex_attributions_handler, titan_strictsplit_handler, titan_on_imrex_data_handler],
+        #                         'SmoothGrad', 'all')
+        # TODO: same implementation as figure 4
+        # # Fig S6: Like Fig 5 but on all models
+        # plot_aa_model_comparison([imrex_attributions_handler, titan_strictsplit_handler, titan_on_imrex_data_handler], 0,
+        #                          'SmoothGrad', 'all', (12.8 / 1.15, 4.8 / 1.15))
+        # TODO: same implementation as figure 5
 
-    # Fig S7: Spearman correlation for all extraction methods
-    # plot_method_correlation_comparison(imrex_attributions_handler, correlation_method='spearman')
-    # plot_method_correlation_comparison(titan_strictsplit_handler, correlation_method='spearman')
+        # Fig S7: Spearman correlation for all extraction methods
+        # plot_method_correlation_comparison(imrex_attributions_handler, correlation_method='spearman')
+        # plot_method_correlation_comparison(titan_strictsplit_handler, correlation_method='spearman')
+
+        print()
+        print()
 
 
 if __name__ == "__main__":
