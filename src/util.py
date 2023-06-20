@@ -244,6 +244,65 @@ def aa_add_padding(aa, l, fill=np.nan):
     return np.concatenate(([fill] * pad_before, aa, [fill] * pad_after))
 
 
+def remove_padding(aa, l):
+    """
+    TODO
+    Parameters
+    ----------
+    aa
+    l
+
+    Returns
+    -------
+
+    """
+    if len(aa) == l:
+        return aa
+    diff = len(aa) - l
+    pad_before = diff // 2
+    pad_after = diff - pad_before
+    return aa[pad_before:len(aa) - pad_after]
+
+
+def add_padding_2d(m, width, height, fill=np.nan):
+    """
+    Add padding to a 2D matrix
+
+    Parameters
+    ----------
+    m       array to add padding to (2D numpy array)
+    l       final length to reach
+    fill    number to use as padding (np.nan by default)
+
+    Returns
+    -------
+    Padded array
+    """
+    if m.shape[0] > width or m.shape[1] > height:
+        print(f'Input matrix exceeding maximum dimensions')
+    if m.shape[0] == width and m.shape[1] == height:
+        return m
+
+    hor_padding = - (m.shape[0] - width)
+    ver_padding = - (m.shape[1] - height)
+
+    ver_before = ver_padding // 2
+    ver_after = ver_padding - ver_before
+
+    hor_before = hor_padding // 2
+    hor_after = hor_padding - hor_before
+
+    pad_hor_before = np.full((hor_before, m.shape[1]), fill)
+    pad_hor_after = np.full((hor_after, m.shape[1]), fill)
+    m = np.concatenate((pad_hor_before, m, pad_hor_after), axis=0)
+
+    pad_ver_before = np.full((m.shape[0], ver_before), fill)
+    pad_ver_after = np.full((m.shape[0], ver_after), fill)
+    m = np.concatenate((pad_ver_before, m, pad_ver_after), axis=1)
+
+    return m
+
+
 def normalize_2d(m):
     """
     Normalize matrix by dividing each value by the max value of the matrix. The largest value will become 1, the

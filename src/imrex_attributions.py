@@ -11,6 +11,7 @@ from scipy.stats import pearsonr, spearmanr
 from src.util import imrex_remove_padding, imgs_to_list_of_feature_lists, generate_path_inputs, setup_logger, \
     get_distance_matrices, normalize_2d, rmse, matrix_to_aa, list_feature_list_to_list_imgs, img_to_feature_list, \
     get_mean_feature_values, integral_approximation, aa_add_padding, correlation_nan, p_value_stats
+from sklearn.preprocessing import normalize
 
 
 class ImrexAttributionsHandler:
@@ -76,16 +77,41 @@ class ImrexAttributionsHandler:
 
     @staticmethod
     def dict_key(pdb_id, channel):
+        """
+        Combine a pdb_id and channel into a single dictionary key
+
+        Parameters
+        ----------
+        pdb_id: the pdb_id
+        channel: channel specification
+
+        Returns
+        -------
+        Resulting dictionary key
+        """
         return f'{pdb_id}_{channel}'
 
     @staticmethod
     def split_feature_attribution_matrix(matrix, w, h, variability_per_position, cdr3):
-        padded_aa = aa_add_padding(np.array([c for c in cdr3]), matrix.shape[0], fill='0').tolist()
-        # factors = [variability_per_position[padded_aa[i]].iloc[i] for i in range(len(padded_aa))]
-        factors = variability_per_position['Normalized standard deviation'].tolist()
-        for i in range(len(padded_aa)):
-            matrix[i] = matrix[i] * factors[i]
-            # matrix[i] = matrix[i] + factors[i]
+        """
+        Split the feature attribution matrix so that each channel is represented by a separate matrix.
+
+        Parameters
+        ----------
+        matrix: The matrix to split
+        w: width, for padding removal
+        h: height, for padding removal
+        variability_per_position
+        cdr3: cdr3 sequence
+
+        Returns
+        -------
+        List of feature matrices
+        """
+        # padded_aa = aa_add_padding(np.array([c for c in cdr3]), matrix.shape[0], fill='0').tolist()
+        # factors = variability_per_position['Normalized standard deviation'].tolist()
+        # for i in range(len(padded_aa)):
+        #     matrix[i] = matrix[i] * factors[i]
 
         if len(matrix.shape) == 2 and matrix.shape[-1] == 4:
             return [imrex_remove_padding(matrix[:, channel], w, h) for channel in range(4)]
@@ -95,15 +121,6 @@ class ImrexAttributionsHandler:
             return [imrex_remove_padding(matrix[:, :, :, channel], w, h) for channel in range(4)]
         else:
             return [imrex_remove_padding(matrix, w, h)]
-
-    @staticmethod
-    def image_channel(image, channel):
-        if channel is not None:
-            image = image.numpy()
-            for i in range(4):
-                image[:, :, i] = image[:, :, channel]
-            image = tf.convert_to_tensor(image)
-        return image
 
     def get_sequences(self):
         """
@@ -163,7 +180,7 @@ class ImrexAttributionsHandler:
 
             attribution_dict = {}
 
-            variability_per_position = pd.read_csv('src/data/variability_metrics.csv')
+            variability_per_position = pd.read_csv(f'src/data/variability_metrics.csv')
 
             property_zip = list(zip(
                 tcr3df['PDB_ID'],
@@ -172,6 +189,16 @@ class ImrexAttributionsHandler:
                 shaps_mean_calc,
                 shaps_dist_calc
             ))
+
+            # if split_channels:
+            #     attribution_dict_combined = self.get_attributions(overwrite=overwrite, split_channels=False)
+            #     attribution_dict_combined = {
+            #         f'{k}_combined': v
+            #         for k, v in attribution_dict_combined.items()
+            #     }
+            #     attribution_dict.update(attribution_dict_combined)
+            #
+            # return attribution_dict
 
             for pdb_id, cdr3, ep, shap_mean, shap_dist in property_zip:
                 pdb_dict = {
@@ -216,16 +243,13 @@ class ImrexAttributionsHandler:
                                     pdb_dict[method][channel]
                 else:
                     for method in pdb_dict:
-                        padded_aa = aa_add_padding(np.array([c for c in cdr3]), pdb_dict[method].shape[0], fill='0').tolist()
-                        # factors = [variability_per_position[padded_aa[i]].iloc[i] for i in range(len(padded_aa))]
-                        factors = variability_per_position['Normalized standard deviation'].tolist()
-                        for i in range(len(padded_aa)):
-                            pdb_dict[method][i] = pdb_dict[method][i] * factors[i]
-                            # pdb_dict[method][i] = pdb_dict[method][i] + factors[i]
-
                         pdb_dict[method] = imrex_remove_padding(pdb_dict[method], len(cdr3), len(ep))
                     attribution_dict[pdb_id] = pdb_dict
 
+                # min_val = np.min(attribution_dict['1AO7']['SmoothGrad'])
+                # max_val = np.max(attribution_dict['1AO7']['SmoothGrad'])
+                # diff = max_val - min_val
+                # normalized = (attribution_dict['1AO7']['SmoothGrad'] - min_val) / diff
                 self.logger.info(f'{pdb_id} done')
 
             if split_channels:
@@ -1261,6 +1285,16 @@ def main():
     imrex_attributions.set_all(overwrite=True, split_channels=True)
     imrex_scrambled_eps.set_all(overwrite=True, split_channels=True)
     imrex_scrambled_tcrs.set_all(overwrite=True, split_channels=True)
+
+    # imrex_corrected_attributions = ImrexAttributionsHandler(
+    #     name="imrex_attribution_corrections",
+    #     display_name="ImRex",
+    #     model_path="ImRex/models/models/2022-01-06_11-03-43_nocdr3dup_default_epgrouped5cv/iteration_2/"
+    #                "2022-01-06_11-03-43_nocdr3dup_default_epgrouped5cv-epoch20.h5",
+    #     image_path="data/tcr3d_images/",
+    #     save_folder="data"
+    # )
+    # imrex_corrected_attributions.set_all(overwrite=False, split_channels=True)
 
 
 if __name__ == "__main__":
